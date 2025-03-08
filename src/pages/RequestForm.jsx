@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Formik, Form, Field, ErrorMessage } from 'formik';
 import * as Yup from 'yup';
-import { Card, Button, Alert, Table, Badge } from 'react-bootstrap';
+import { Card, Button, Alert, Table, Badge, Modal } from 'react-bootstrap';
 import { requestAPI } from '../services/api';
 
 const RequestForm = () => {
@@ -9,6 +9,10 @@ const RequestForm = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [editingRequest, setEditingRequest] = useState(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteId, setDeleteId] = useState(null);
 
   useEffect(() => {
     // Kullanıcının daha önce yaptığı talepleri getir
@@ -69,6 +73,66 @@ const RequestForm = () => {
       }, 3000);
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  // Düzenleme işlemi için modal açma
+  const handleEditRequest = (request) => {
+    setEditingRequest(request);
+    setShowEditModal(true);
+  };
+
+  // Düzenleme işlemi onaylama
+  const handleUpdateRequest = async (values, { setSubmitting }) => {
+    try {
+      await requestAPI.updateRequest(editingRequest.id, values);
+      setSuccess('Talep başarıyla güncellendi!');
+      setShowEditModal(false);
+      fetchRequests(); // Listeyi güncelle
+      
+      // 3 saniye sonra başarı mesajını kaldır
+      setTimeout(() => {
+        setSuccess('');
+      }, 3000);
+    } catch (err) {
+      setError('Talep güncellenirken bir hata oluştu.');
+      console.error(err);
+      
+      // 3 saniye sonra hata mesajını kaldır
+      setTimeout(() => {
+        setError('');
+      }, 3000);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Silme işlemi için modal açma
+  const handleShowDeleteModal = (id) => {
+    setDeleteId(id);
+    setShowDeleteModal(true);
+  };
+
+  // Silme işlemi onaylama
+  const handleDeleteRequest = async () => {
+    try {
+      await requestAPI.deleteRequest(deleteId);
+      setSuccess('Talep başarıyla silindi!');
+      setShowDeleteModal(false);
+      fetchRequests(); // Listeyi güncelle
+      
+      // 3 saniye sonra başarı mesajını kaldır
+      setTimeout(() => {
+        setSuccess('');
+      }, 3000);
+    } catch (err) {
+      setError('Talep silinirken bir hata oluştu.');
+      console.error(err);
+      
+      // 3 saniye sonra hata mesajını kaldır
+      setTimeout(() => {
+        setError('');
+      }, 3000);
     }
   };
 
@@ -215,6 +279,7 @@ const RequestForm = () => {
               <th>Durum</th>
               <th>Oluşturma Tarihi</th>
               <th>Onaylayan Yorumu</th>
+              <th>İşlemler</th>
             </tr>
           </thead>
           <tbody>
@@ -229,6 +294,27 @@ const RequestForm = () => {
                 <td>{getStatusBadge(request.status)}</td>
                 <td>{new Date(request.createdAt).toLocaleString()}</td>
                 <td>{request.comment}</td>
+                <td>
+                  {request.status === 'PENDING' && (
+                    <>
+                      <Button 
+                        variant="outline-primary" 
+                        size="sm" 
+                        className="me-2"
+                        onClick={() => handleEditRequest(request)}
+                      >
+                        Düzenle
+                      </Button>
+                      <Button 
+                        variant="outline-danger" 
+                        size="sm"
+                        onClick={() => handleShowDeleteModal(request.id)}
+                      >
+                        Sil
+                      </Button>
+                    </>
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -238,6 +324,117 @@ const RequestForm = () => {
           <p className="mb-0">Henüz hiç talep oluşturmadınız.</p>
         </div>
       )}
+
+      {/* Düzenleme Modal */}
+      <Modal show={showEditModal} onHide={() => setShowEditModal(false)}>
+        <Modal.Header closeButton>
+          <Modal.Title>Talebi Düzenle</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          {editingRequest && (
+            <Formik
+              initialValues={{
+                title: editingRequest.title,
+                description: editingRequest.description,
+                quantity: editingRequest.quantity,
+                unit: editingRequest.unit,
+                urgency: editingRequest.urgency
+              }}
+              validationSchema={validationSchema}
+              onSubmit={handleUpdateRequest}
+            >
+              {({ isSubmitting }) => (
+                <Form>
+                  <div className="mb-3">
+                    <label htmlFor="title" className="form-label">Ürün</label>
+                    <Field type="text" name="title" className="form-control" />
+                    <ErrorMessage name="title" component="div" className="text-danger" />
+                  </div>
+
+                  <div className="mb-3">
+                    <label htmlFor="description" className="form-label">Açıklama</label>
+                    <Field
+                      as="textarea"
+                      name="description"
+                      className="form-control"
+                      rows="3"
+                    />
+                    <ErrorMessage name="description" component="div" className="text-danger" />
+                  </div>
+
+                  <div className="row mb-3">
+                    <div className="col-md-6">
+                      <label htmlFor="quantity" className="form-label">Miktar</label>
+                      <Field type="number" name="quantity" min="1" className="form-control" />
+                      <ErrorMessage name="quantity" component="div" className="text-danger" />
+                    </div>
+                    <div className="col-md-6">
+                      <label htmlFor="unit" className="form-label">Birim</label>
+                      <Field as="select" name="unit" className="form-select">
+                        <option value="PIECE">Adet</option>
+                        <option value="KILOGRAM">Kilogram (kg)</option>
+                        <option value="METER">Metre</option>
+                        <option value="TON">Ton</option>
+                        <option value="LITER">Litre</option>
+                        <option value="PACKAGE">Paket</option>
+                        <option value="BOX">Kutu</option>
+                        <option value="PALLET">Palet</option>
+                        <option value="SIZE">Boy</option>
+                      </Field>
+                      <ErrorMessage name="unit" component="div" className="text-danger" />
+                    </div>
+                  </div>
+
+                  <div className="mb-3">
+                    <label htmlFor="urgency" className="form-label">Aciliyet</label>
+                    <Field as="select" name="urgency" className="form-select">
+                      <option value="NORMAL">Normal</option>
+                      <option value="HIGH">Yüksek</option>
+                      <option value="URGENT">Acil</option>
+                    </Field>
+                    <ErrorMessage name="urgency" component="div" className="text-danger" />
+                  </div>
+
+                  <div className="d-flex justify-content-end">
+                    <Button 
+                      variant="secondary" 
+                      className="me-2"
+                      onClick={() => setShowEditModal(false)}
+                    >
+                      İptal
+                    </Button>
+                    <Button 
+                      type="submit" 
+                      variant="primary" 
+                      disabled={isSubmitting}
+                    >
+                      {isSubmitting ? 'Güncelleniyor...' : 'Güncelle'}
+                    </Button>
+                  </div>
+                </Form>
+              )}
+            </Formik>
+          )}
+        </Modal.Body>
+      </Modal>
+
+      {/* Silme Onay Modal */}
+      <Modal show={showDeleteModal} onHide={() => setShowDeleteModal(false)}>
+        <Modal.Header closeButton>
+          <Modal.Title>Talebi Sil</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <p>Bu talebi silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.</p>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowDeleteModal(false)}>
+            İptal
+          </Button>
+          <Button variant="danger" onClick={handleDeleteRequest}>
+            Sil
+          </Button>
+        </Modal.Footer>
+      </Modal>
     </div>
   );
 };

@@ -55,6 +55,8 @@ const requestAPI = {
   getDeliveredRequests: () => api.get('/requests/delivered'), // Yeni endpoint
   updateStatus: (id, statusData) => api.put(`/requests/${id}/status`, statusData),
   deliverRequest: (id, deliveryData) => api.put(`/requests/${id}/deliver`, deliveryData),
+  deleteRequest: (id) => api.delete(`/requests/${id}`),
+  updateRequest: (id, requestData) => api.put(`/requests/${id}`, requestData),
 };
 
 export { api, authAPI, requestAPI };

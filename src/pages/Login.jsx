@@ -26,7 +26,7 @@ const Login = () => {
   // AuthContext'ten gelen hata mesajını kullan
   useEffect(() => {
     if (authError) {
-      setError(authError);
+      setError('Kullanıcı adı veya şifre hatalı');
     }
   }, [authError]);
 
@@ -93,15 +93,6 @@ const Login = () => {
             </Form>
           )}
         </Formik>
-        
-        <div className="mt-4 text-center">
-          <small className="text-muted">
-            Demo Kullanıcılar:<br />
-            requester / 123456 (Talep Eden)<br />
-            approver / 123456 (Onaylayan)<br />
-            receiver / 123456 (Teslim Alan)
-          </small>
-        </div>
       </Card>
     </div>
   );

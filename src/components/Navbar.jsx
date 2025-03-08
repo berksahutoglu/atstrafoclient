@@ -2,6 +2,7 @@ import React, { useContext } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 import { Navbar, Nav, Container, Button } from 'react-bootstrap';
+import logo from '../assets/logo.jpg'
 
 const NavbarComponent = () => {
   const { currentUser, logout } = useContext(AuthContext);
@@ -26,6 +27,8 @@ const NavbarComponent = () => {
   return (
     <Navbar variant="dark" expand="lg" className="mb-4">
       <Container>
+      <img src={logo} alt="atslogo" width="200" height="50" />
+
         <Navbar.Brand style={orangeTextStyle}>Talep Yönetim Sistemi</Navbar.Brand>
         <Navbar.Toggle aria-controls="basic-navbar-nav" />
         <Navbar.Collapse id="basic-navbar-nav">

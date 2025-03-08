@@ -118,7 +118,7 @@ const RequestApproval = () => {
     
     // Sipariş verildi ise sipariş numarası gerekli
     if (status === 'ORDERED' && !orderNumber) {
-      setError('Sipariş numarası gerekli.');
+      setError('Tedarikçi ismi gerekli.');
       return;
     }
     
@@ -323,7 +323,7 @@ const RequestApproval = () => {
                   <th>Miktar</th>
                   <th>Birim</th>
                   <th>Aciliyet</th>
-                  <th>Sipariş Numarası</th>
+                  <th>Tedarikçi İsmi</th>
                   <th>Sipariş Tarihi</th>
                   <th>Durum</th>
                 </tr>
@@ -366,7 +366,7 @@ const RequestApproval = () => {
                   <th>Başlık</th>
                   <th>Miktar</th>
                   <th>Birim</th>
-                  <th>Sipariş Numarası</th>
+                  <th>Tedarikçi İsmi</th>
                   <th>Teslim Alan</th>
                   <th>Teslim Tarihi</th>
                   <th>Teslimat Notu</th>
@@ -436,7 +436,7 @@ const RequestApproval = () => {
                 
                 {(status === 'ORDERED' || selectedRequest.status === 'APPROVED') && (
                   <Form.Group className="mb-3">
-                    <Form.Label>Sipariş Numarası</Form.Label>
+                    <Form.Label>Tedarikçi İsmi</Form.Label>
                     <Form.Control 
                       type="text" 
                       value={orderNumber} 

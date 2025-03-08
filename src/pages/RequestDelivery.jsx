@@ -103,7 +103,7 @@ const RequestDelivery = () => {
               <th>Başlık</th>
               <th>Miktar</th>
               <th>Birim</th>
-              <th>Sipariş Numarası</th>
+              <th>Tedarikçi İsmi</th>
               <th>Sipariş Tarihi</th>
               <th>İşlemler</th>
             </tr>
@@ -150,7 +150,7 @@ const RequestDelivery = () => {
               <p><strong>Talep Eden:</strong> {selectedRequest.requesterName}</p>
               <p><strong>Başlık:</strong> {selectedRequest.title}</p>
               <p><strong>Miktar:</strong> {selectedRequest.quantity} {getUnitName(selectedRequest.unit)}</p>
-              <p><strong>Sipariş Numarası:</strong> {selectedRequest.orderNumber}</p>
+              <p><strong>Tedarikçi İsmi:</strong> {selectedRequest.orderNumber}</p>
               
               <Form onSubmit={handleDeliveryConfirm}>
                 <Form.Group className="mb-3">
