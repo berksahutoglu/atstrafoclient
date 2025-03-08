@@ -1,38 +1,108 @@
 .App {
-  text-align: center;
-}
-
-.App-logo {
-  height: 40vmin;
-  pointer-events: none;
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .App-logo {
-    animation: App-logo-spin infinite 20s linear;
-  }
-}
-
-.App-header {
-  background-color: #282c34;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  font-size: calc(10px + 2vmin);
-  color: white;
 }
 
-.App-link {
-  color: #61dafb;
+.container {
+  flex: 1;
 }
 
-@keyframes App-logo-spin {
-  from {
-    transform: rotate(0deg);
+/* Renk teması değişkenleri */
+:root {
+  --orange-primary: #FF8C00;  /* Turuncu */
+  --orange-light: #FFA500;
+  --orange-dark: #FF7100;
+  --orange-very-light: #FFE4B5;
+  
+  --navy-primary: #000080;    /* Lacivert */
+  --navy-light: #8cb7ff;
+  --navy-dark: #000060;
+  --navy-very-light: #E6E6FA;
+}
+
+/* Navbar Renk Özelleştirmeleri */
+.navbar {
+  background-color: var(--navy-dark) !important;
+}
+
+.navbar-dark .navbar-brand, 
+.navbar-dark .nav-link {
+  color: var(--orange-primary) !important;
+}
+
+.navbar-dark .nav-link:hover,
+.navbar-dark .nav-link.active {
+  color: var(--orange-light) !important;
+}
+
+/* Buton Renk Özelleştirmeleri */
+.btn-primary {
+  background-color: var(--navy-primary);
+  border-color: var(--navy-primary);
+}
+
+.btn-primary:hover, .btn-primary:focus, .btn-primary:active {
+  background-color: var(--navy-light);
+  border-color: var(--navy-light);
+}
+
+/* Form İyileştirmeleri */
+.form-control:focus, .form-select:focus {
+  border-color: var(--orange-primary);
+  box-shadow: 0 0 0 0.2rem rgba(255, 140, 0, 0.25);
+}
+
+/* Tablo İyileştirmeleri */
+.table th {
+  background-color: #f8f9fa;
+  vertical-align: middle;
+}
+
+.table td {
+  vertical-align: middle;
+}
+
+/* Buton İyileştirmeleri */
+.btn {
+  border-radius: 0.25rem;
+}
+
+/* Badge İyileştirmeleri */
+.badge {
+  font-weight: 500;
+  padding: 0.35em 0.65em;
+}
+
+/* Card İyileştirmeleri */
+.card {
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+/* Animasyonlar */
+.alert {
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+  0% {
+    opacity: 0;
+    transform: translateY(-10px);
   }
-  to {
-    transform: rotate(360deg);
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Responsive iyileştirmeler */
+@media (max-width: 768px) {
+  .card {
+    margin-bottom: 1rem;
+  }
+  
+  .table-responsive {
+    margin-bottom: 1rem;
   }
 }
