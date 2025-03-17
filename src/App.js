@@ -5,6 +5,10 @@ import Login from './pages/Login';
 import RequestForm from './pages/RequestForm';
 import RequestApproval from './pages/ RequestApproval';
 import RequestDelivery from './pages/RequestDelivery';
+import SalesRequestForm from './pages/SalesRequestForm';
+import MultiSalesRequestForm from './pages/MultiSalesRequestForm';
+import ProductionDashboard from './pages/ProductionDashboard';
+import MultiRequestForm from './pages/MultiRequestForm';
 import Navbar from './components/Navbar';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import './App.css';
@@ -42,7 +46,7 @@ function App() {
               
               <Route path="/requests" element={
                 <ProtectedRoute roles={['ROLE_REQUESTER']}>
-                  <RequestForm />
+                  <MultiRequestForm />
                 </ProtectedRoute>
               } />
               
@@ -55,6 +59,18 @@ function App() {
               <Route path="/deliveries" element={
                 <ProtectedRoute roles={['ROLE_RECEIVER']}>
                   <RequestDelivery />
+                </ProtectedRoute>
+              } />
+              
+              <Route path="/sales" element={
+                <ProtectedRoute roles={['ROLE_SALESANDMARKETING']}>
+                  <MultiSalesRequestForm />
+                </ProtectedRoute>
+              } />
+              
+              <Route path="/production" element={
+                <ProtectedRoute roles={['ROLE_PRODUCTION']}>
+                  <ProductionDashboard />
                 </ProtectedRoute>
               } />
               

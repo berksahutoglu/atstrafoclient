@@ -63,6 +63,26 @@ const NavbarComponent = () => {
                 Talep Teslim Al
               </Nav.Link>
             )}
+            {currentUser && currentUser.role === 'ROLE_SALESANDMARKETING' && (
+              <Nav.Link 
+                as={Link} 
+                to="/sales" 
+                className={getNavLinkClass("/sales")}
+                style={orangeTextStyle}
+              >
+                Satış Siparişleri
+              </Nav.Link>
+            )}
+            {currentUser && currentUser.role === 'ROLE_PRODUCTION' && (
+              <Nav.Link 
+                as={Link} 
+                to="/production" 
+                className={getNavLinkClass("/production")}
+                style={orangeTextStyle}
+              >
+                Üretim Planlama
+              </Nav.Link>
+            )}
           </Nav>
           <Nav>
             {currentUser ? (

@@ -1,14 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { Formik, Form, Field, ErrorMessage } from 'formik';
 import * as Yup from 'yup';
-import { Card, Button, Alert, Table, Badge, Modal } from 'react-bootstrap';
-import { requestAPI } from '../services/api';
+import { Card, Button, Alert, Table, Badge, Modal, ListGroup } from 'react-bootstrap';
+import { requestAPI, orderAPI } from '../services/api';
+import 'bootstrap-icons/font/bootstrap-icons.css';
 
-const RequestForm = () => {
+const MultiRequestForm = () => {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  
+  // Sepet (çoklu talep için)
+  const [cartItems, setCartItems] = useState([]);
+  const [orderNotes, setOrderNotes] = useState('');
+  
+  // Düzenleme ve silme için
   const [editingRequest, setEditingRequest] = useState(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -51,6 +58,69 @@ const RequestForm = () => {
     urgency: Yup.string().required('Aciliyet seviyesi gerekli')
   });
 
+  // Talebi sepete ekle
+  const handleAddToCart = (values, { resetForm }) => {
+    // Benzersiz bir geçici ID ekle
+    const itemWithId = { ...values, tempId: Date.now() };
+    setCartItems([...cartItems, itemWithId]);
+    resetForm();
+    setSuccess('Talep sepete eklendi!');
+    
+    setTimeout(() => {
+      setSuccess('');
+    }, 2000);
+  };
+  
+  // Sepetteki talebi kaldır
+  const handleRemoveFromCart = (tempId) => {
+    setCartItems(cartItems.filter(item => item.tempId !== tempId));
+  };
+  
+  // Sepeti temizle
+  const handleClearCart = () => {
+    setCartItems([]);
+  };
+  
+  // Toplu sipariş oluştur
+  const handleCreateOrder = async () => {
+    if (cartItems.length === 0) {
+      setError('Sipariş oluşturmak için en az bir talep ekleyin.');
+      return;
+    }
+    
+    try {
+      // OrderDto formatını oluştur
+      const orderDto = {
+        notes: orderNotes,
+        requests: cartItems.map(item => ({
+          title: item.title,
+          description: item.description,
+          quantity: item.quantity,
+          unit: item.unit,
+          urgency: item.urgency
+        }))
+      };
+      
+      await orderAPI.createOrder(orderDto);
+      setSuccess('Sipariş başarıyla oluşturuldu!');
+      setCartItems([]);
+      setOrderNotes('');
+      fetchRequests(); // Listeyi güncelle
+      
+      setTimeout(() => {
+        setSuccess('');
+      }, 3000);
+    } catch (err) {
+      setError('Sipariş oluşturulurken bir hata oluştu.');
+      console.error(err);
+      
+      setTimeout(() => {
+        setError('');
+      }, 3000);
+    }
+  };
+  
+  // Tek talep oluştur
   const handleSubmit = async (values, { setSubmitting, resetForm }) => {
     try {
       await requestAPI.createRequest(values);
@@ -58,7 +128,6 @@ const RequestForm = () => {
       resetForm();
       fetchRequests(); // Listeyi güncelle
       
-      // 3 saniye sonra başarı mesajını kaldır
       setTimeout(() => {
         setSuccess('');
       }, 3000);
@@ -66,7 +135,6 @@ const RequestForm = () => {
       setError('Talep oluşturulurken bir hata oluştu.');
       console.error(err);
       
-      // 3 saniye sonra hata mesajını kaldır
       setTimeout(() => {
         setError('');
       }, 3000);
@@ -89,7 +157,6 @@ const RequestForm = () => {
       setShowEditModal(false);
       fetchRequests(); // Listeyi güncelle
       
-      // 3 saniye sonra başarı mesajını kaldır
       setTimeout(() => {
         setSuccess('');
       }, 3000);
@@ -97,7 +164,6 @@ const RequestForm = () => {
       setError('Talep güncellenirken bir hata oluştu.');
       console.error(err);
       
-      // 3 saniye sonra hata mesajını kaldır
       setTimeout(() => {
         setError('');
       }, 3000);
@@ -120,7 +186,6 @@ const RequestForm = () => {
       setShowDeleteModal(false);
       fetchRequests(); // Listeyi güncelle
       
-      // 3 saniye sonra başarı mesajını kaldır
       setTimeout(() => {
         setSuccess('');
       }, 3000);
@@ -128,7 +193,6 @@ const RequestForm = () => {
       setError('Talep silinirken bir hata oluştu.');
       console.error(err);
       
-      // 3 saniye sonra hata mesajını kaldır
       setTimeout(() => {
         setError('');
       }, 3000);
@@ -146,7 +210,7 @@ const RequestForm = () => {
       case 'PACKAGE': return 'paket';
       case 'BOX': return 'kutu';
       case 'PALLET': return 'palet';
-      case 'SIZE' : return 'boy';
+      case 'SIZE': return 'boy';
       default: return unit;
     }
   };
@@ -185,44 +249,37 @@ const RequestForm = () => {
 
   return (
     <div className="container">
-      <h2 className="mb-4">Yeni Talep Oluştur</h2>
+      <h2 className="mb-4">Talep Oluştur</h2>
       
       {error && <Alert variant="danger">{error}</Alert>}
       {success && <Alert variant="success">{success}</Alert>}
       
       <Card className="mb-4 shadow-sm">
+        <Card.Header className="d-flex justify-content-between align-items-center">
+          <h5 className="mb-0">Yeni Talep</h5>
+        </Card.Header>
         <Card.Body>
           <Formik
             initialValues={initialValues}
             validationSchema={validationSchema}
-            onSubmit={handleSubmit}
+            onSubmit={handleAddToCart}
           >
-            {({ isSubmitting }) => (
+            {({ isSubmitting, values, resetForm, handleSubmit }) => (
               <Form>
-                <div className="mb-3">
-                  <label htmlFor="title" className="form-label">Ürün</label>
-                  <Field type="text" name="title" className="form-control" />
-                  <ErrorMessage name="title" component="div" className="text-danger" />
-                </div>
+                <div className="row">
+                  <div className="col-md-4 mb-3">
+                    <label htmlFor="title" className="form-label">Ürün</label>
+                    <Field type="text" name="title" className="form-control" />
+                    <ErrorMessage name="title" component="div" className="text-danger" />
+                  </div>
 
-                <div className="mb-3">
-                  <label htmlFor="description" className="form-label">Açıklama</label>
-                  <Field
-                    as="textarea"
-                    name="description"
-                    className="form-control"
-                    rows="3"
-                  />
-                  <ErrorMessage name="description" component="div" className="text-danger" />
-                </div>
-
-                <div className="row mb-3">
-                  <div className="col-md-6">
+                  <div className="col-md-2 mb-3">
                     <label htmlFor="quantity" className="form-label">Miktar</label>
                     <Field type="number" name="quantity" min="1" className="form-control" />
                     <ErrorMessage name="quantity" component="div" className="text-danger" />
                   </div>
-                  <div className="col-md-6">
+
+                  <div className="col-md-2 mb-3">
                     <label htmlFor="unit" className="form-label">Birim</label>
                     <Field as="select" name="unit" className="form-select">
                       <option value="PIECE">Adet</option>
@@ -237,30 +294,109 @@ const RequestForm = () => {
                     </Field>
                     <ErrorMessage name="unit" component="div" className="text-danger" />
                   </div>
+
+                  <div className="col-md-3 mb-3">
+                    <label htmlFor="urgency" className="form-label">Aciliyet</label>
+                    <Field as="select" name="urgency" className="form-select">
+                      <option value="NORMAL">Normal</option>
+                      <option value="HIGH">Yüksek</option>
+                      <option value="URGENT">Acil</option>
+                    </Field>
+                    <ErrorMessage name="urgency" component="div" className="text-danger" />
+                  </div>
+
+                  <div className="col-md-1 mb-3 d-flex align-items-end">
+                    <Button 
+                      type="submit" 
+                      variant="outline-success" 
+                      disabled={isSubmitting || !values.title}
+                      className="btn-sm"
+                    >
+                      <i className="bi bi-plus-lg fs-5"></i>
+                    </Button>
+                  </div>
                 </div>
 
                 <div className="mb-3">
-                  <label htmlFor="urgency" className="form-label">Aciliyet</label>
-                  <Field as="select" name="urgency" className="form-select">
-                    <option value="NORMAL">Normal</option>
-                    <option value="HIGH">Yüksek</option>
-                    <option value="URGENT">Acil</option>
-                  </Field>
-                  <ErrorMessage name="urgency" component="div" className="text-danger" />
+                  <label htmlFor="description" className="form-label">Açıklama</label>
+                  <Field
+                    as="textarea"
+                    name="description"
+                    className="form-control"
+                    rows="3"
+                  />
+                  <ErrorMessage name="description" component="div" className="text-danger" />
                 </div>
-
-                <Button 
-                  type="submit" 
-                  variant="primary" 
-                  disabled={isSubmitting}
-                >
-                  {isSubmitting ? 'Gönderiliyor...' : 'Talep Oluştur'}
-                </Button>
               </Form>
             )}
           </Formik>
         </Card.Body>
       </Card>
+
+      {/* Sepet Görünümü (Kart içinde) */}
+      {cartItems.length > 0 && (
+        <Card className="mb-4 shadow-sm">
+          <Card.Header className="bg-light">
+            <div className="d-flex justify-content-between align-items-center">
+              <h5 className="mb-0">Sepet ({cartItems.length} Ürün)</h5>
+              <div>
+                <Button 
+                  variant="outline-danger" 
+                  size="sm"
+                  className="me-2"
+                  onClick={handleClearCart}
+                >
+                  <i className="bi bi-trash"></i> Sepeti Temizle
+                </Button>
+                <Button 
+                  variant="success" 
+                  size="sm"
+                  onClick={handleCreateOrder}
+                >
+                  <i className="bi bi-check-lg"></i> Sipariş Oluştur
+                </Button>
+              </div>
+            </div>
+          </Card.Header>
+          <Card.Body>
+            <div className="mb-3">
+              <label htmlFor="orderNotes" className="form-label">Sipariş Notları</label>
+              <textarea
+                id="orderNotes"
+                className="form-control"
+                rows="2"
+                value={orderNotes}
+                onChange={(e) => setOrderNotes(e.target.value)}
+                placeholder="Siparişle ilgili eklemek istediğiniz notlar"
+              />
+            </div>
+            
+            <ListGroup variant="flush">
+              {cartItems.map((item, index) => (
+                <ListGroup.Item key={item.tempId} className="d-flex justify-content-between align-items-center py-3">
+                  <div className="d-flex align-items-center">
+                    <Badge bg="secondary" className="me-3">{index + 1}</Badge>
+                    <div>
+                      <h6 className="mb-0">{item.title}</h6>
+                      <p className="mb-0 text-muted small">
+                        {item.quantity} {getUnitName(item.unit)} | {getUrgencyBadge(item.urgency)}
+                      </p>
+                      {item.description && <p className="mb-0 text-muted small">{item.description}</p>}
+                    </div>
+                  </div>
+                  <Button 
+                    variant="outline-danger" 
+                    size="sm"
+                    onClick={() => handleRemoveFromCart(item.tempId)}
+                  >
+                    <i className="bi bi-x-lg"></i>
+                  </Button>
+                </ListGroup.Item>
+              ))}
+            </ListGroup>
+          </Card.Body>
+        </Card>
+      )}
 
       <h3 className="mt-5 mb-3">Taleplerim</h3>
       {loading ? (
@@ -438,4 +574,4 @@ const RequestForm = () => {
   );
 };
 
-export default RequestForm;
+export default MultiRequestForm;

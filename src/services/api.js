@@ -52,12 +52,31 @@ const requestAPI = {
   getPendingRequests: () => api.get('/requests/pending'),
   getApprovedRequests: () => api.get('/requests/approved'),
   getOrderedRequests: () => api.get('/requests/ordered'),
-  getDeliveredRequests: () => api.get('/requests/delivered'), // Yeni endpoint
+  getDeliveredRequests: () => api.get('/requests/delivered'),
+  getProductionRequests: () => api.get('/requests/production'),
   updateStatus: (id, statusData) => api.put(`/requests/${id}/status`, statusData),
   deliverRequest: (id, deliveryData) => api.put(`/requests/${id}/deliver`, deliveryData),
   deleteRequest: (id) => api.delete(`/requests/${id}`),
   updateRequest: (id, requestData) => api.put(`/requests/${id}`, requestData),
 };
 
-export { api, authAPI, requestAPI };
+// Sipariş API
+const orderAPI = {
+  createOrder: (orderData) => api.post('/orders', orderData),
+  getMyOrders: () => api.get('/orders/my-orders'),
+  getOrderById: (id) => api.get(`/orders/${id}`),
+  getPendingOrders: () => api.get('/orders/pending'),
+};
+
+// Satış ve Pazarlama API
+const salesAPI = {
+  createSalesRequest: (requestData) => api.post('/sales', requestData),
+  getMySalesRequests: () => api.get('/sales/my-requests'),
+  getPendingSalesRequests: () => api.get('/sales/pending'),
+  getProcessingSalesRequests: () => api.get('/sales/processing'),
+  getSalesRequestById: (id) => api.get(`/sales/${id}`),
+  convertToProductionRequest: (id) => api.post(`/sales/${id}/convert`),
+};
+
+export { api, authAPI, requestAPI, orderAPI, salesAPI };
 export default api;

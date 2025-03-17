@@ -19,6 +19,10 @@ const Login = () => {
         navigate('/approvals');
       } else if (currentUser.role === 'ROLE_RECEIVER') {
         navigate('/deliveries');
+      }else if (currentUser.role === 'ROLE_SALESANDMARKETING') {
+        navigate('/sales');
+      }else if (currentUser.role === 'ROLE_PRODUCTION') {
+        navigate('/production');
       }
     }
   }, [currentUser, navigate]);
