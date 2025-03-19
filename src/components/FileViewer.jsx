@@ -44,7 +44,7 @@ const FileViewer = ({ requestId, salesRequestId, refreshTrigger }) => {
       }
       
       // Fetch API ile dosyayı indir (token ile birlikte)
-      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8080'}/api/attachments/${attachmentId}/download`, {
+      const response = await fetch(`${process.env.REACT_APP_API_URL || 'https://web-production-5d8c.up.railway.app'}/api/attachments/${attachmentId}/download`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
