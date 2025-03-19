@@ -32,6 +32,7 @@ const RequestApproval = () => {
   const [status, setStatus] = useState('');
   const [comment, setComment] = useState('');
   const [orderNumber, setOrderNumber] = useState('');
+  const [estimatedDeliveryDate, setEstimatedDeliveryDate] = useState('');
   
   // Dosya görüntüleme için state
   const [showFilesModal, setShowFilesModal] = useState(false);
@@ -107,6 +108,7 @@ const RequestApproval = () => {
     setStatus(initialStatus); // İlk durumu ayarla
     setComment('');
     setOrderNumber('');
+    setEstimatedDeliveryDate(''); // Tahmini termin tarihini sıfırla
     setShowModal(true);
   };
   
@@ -134,11 +136,18 @@ const RequestApproval = () => {
       return;
     }
     
+    // Sipariş verildi ise tahmini termin tarihi gerekli
+    if (status === 'ORDERED' && !estimatedDeliveryDate) {
+      setError('Tahmini termin tarihi gerekli.');
+      return;
+    }
+    
     try {
       await requestAPI.updateStatus(selectedRequest.id, {
         status,
         comment,
-        orderNumber: status === 'ORDERED' ? orderNumber : null
+        orderNumber: status === 'ORDERED' ? orderNumber : null,
+        estimatedDeliveryDate: status === 'ORDERED' ? estimatedDeliveryDate : null
       });
       
       setSuccess('Talep başarıyla güncellendi!');
@@ -355,6 +364,7 @@ const RequestApproval = () => {
                   <th>Aciliyet</th>
                   <th>Tedarikçi İsmi</th>
                   <th>Sipariş Tarihi</th>
+                  <th>Tahmini Termin</th>
                   <th>Durum</th>
                   <th>İşlemler</th>
                 </tr>
@@ -371,7 +381,8 @@ const RequestApproval = () => {
                     <td>
                       <span className="fw-bold">{request.orderNumber}</span>
                     </td>
-                    <td>{new Date(request.orderDate).toLocaleString()}</td>
+                    <td>{request.orderDate ? new Date(request.orderDate).toLocaleString() : '-'}</td>
+                    <td>{request.estimatedDeliveryDate ? new Date(request.estimatedDeliveryDate).toLocaleDateString() : '-'}</td>
                     <td>{getStatusBadge(request.status)}</td>
                     <td>
                       <Button 
@@ -485,15 +496,28 @@ const RequestApproval = () => {
                 )}
                 
                 {(status === 'ORDERED' || selectedRequest.status === 'APPROVED') && (
-                  <Form.Group className="mb-3">
-                    <Form.Label>Tedarikçi İsmi</Form.Label>
-                    <Form.Control 
-                      type="text" 
-                      value={orderNumber} 
-                      onChange={(e) => setOrderNumber(e.target.value)} 
-                      required
-                    />
-                  </Form.Group>
+                  <>
+                    <Form.Group className="mb-3">
+                      <Form.Label>Tedarikçi İsmi</Form.Label>
+                      <Form.Control 
+                        type="text" 
+                        value={orderNumber} 
+                        onChange={(e) => setOrderNumber(e.target.value)} 
+                        required
+                      />
+                    </Form.Group>
+                    
+                    <Form.Group className="mb-3">
+                      <Form.Label>Tahmini Termin Tarihi</Form.Label>
+                      <Form.Control 
+                        type="date" 
+                        value={estimatedDeliveryDate} 
+                        onChange={(e) => setEstimatedDeliveryDate(e.target.value)} 
+                        required
+                        min={new Date().toISOString().split('T')[0]} // Bugünden sonraki tarihleri seç
+                      />
+                    </Form.Group>
+                  </>
                 )}
                 
                 <Form.Group className="mb-3">
