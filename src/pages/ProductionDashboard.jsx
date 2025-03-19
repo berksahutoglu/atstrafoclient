@@ -2,7 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { Card, Table, Button, Alert, Badge, Tabs, Tab, Modal, ListGroup } from 'react-bootstrap';
 import { Formik, Form, Field, ErrorMessage } from 'formik';
 import * as Yup from 'yup';
-import { salesAPI, requestAPI } from '../services/api';
+import { salesAPI, requestAPI, attachmentAPI } from '../services/api';
+import FileViewer from '../components/FileViewer';
+import FileUploader from '../components/FileUploader';
 
 const ProductionDashboard = () => {
   const [activeTab, setActiveTab] = useState('pending');
@@ -36,6 +38,13 @@ const ProductionDashboard = () => {
   const [relatedSalesRequest, setRelatedSalesRequest] = useState(null);
   
   const [conversionLoading, setConversionLoading] = useState(false);
+  
+  // Dosya görüntüleme için state
+  const [showFilesModal, setShowFilesModal] = useState(false);
+  const [selectedRequestId, setSelectedRequestId] = useState(null);
+  const [selectedSalesRequestId, setSelectedSalesRequestId] = useState(null);
+  const [refreshFiles, setRefreshFiles] = useState(0);
+  const [selectedFiles, setSelectedFiles] = useState([]);
   
   useEffect(() => {
     fetchPendingSalesRequests();
@@ -90,6 +99,18 @@ const ProductionDashboard = () => {
     setShowDetailsModal(true);
   };
   
+  // Dosya görüntüleme modalını açma
+  const handleShowFilesModal = (id, isSalesRequest = false) => {
+    if (isSalesRequest) {
+      setSelectedSalesRequestId(id);
+      setSelectedRequestId(null);
+    } else {
+      setSelectedRequestId(id);
+      setSelectedSalesRequestId(null);
+    }
+    setShowFilesModal(true);
+  };
+  
   // Yeni talep oluşturma modalını gösterme
   const handleOpenNewRequestModal = (salesRequest) => {
     // Satış talebini kaydet
@@ -99,14 +120,28 @@ const ProductionDashboard = () => {
     setShowNewRequestModal(true);
   };
   
+  // Dosya seçimi
+  const handleFileChange = (e) => {
+    setSelectedFiles(Array.from(e.target.files));
+  };
+  
   // Sepete talep ekleme
   const handleAddToCart = (values, { resetForm }) => {
     // Benzersiz ID ekle (sadece sepette kullanılacak)
-    const newItem = { ...values, tempId: Date.now() };
+    const newItem = { 
+      ...values, 
+      tempId: Date.now(),
+      files: selectedFiles.length > 0 ? [...selectedFiles] : []
+    };
     
     setCartItems([...cartItems, newItem]);
     setSuccess('Ürün sepete eklendi');
     resetForm();
+    
+    // Dosya seçimini sıfırla
+    setSelectedFiles([]);
+    const fileInput = document.getElementById('productionFileUpload');
+    if (fileInput) fileInput.value = '';
     
     setTimeout(() => {
       setSuccess('');
@@ -152,7 +187,24 @@ const ProductionDashboard = () => {
         
         console.log('Gönderilen talep verisi:', requestData);
         
-        await requestAPI.createRequest(requestData);
+        const response = await requestAPI.createRequest(requestData);
+        const newRequestId = response.data.id;
+        
+        // Dosya yükleme işlemi
+        if (item.files && item.files.length > 0) {
+          try {
+            const formData = new FormData();
+            item.files.forEach(file => {
+              formData.append('files', file);
+            });
+            
+            await attachmentAPI.uploadFiles(newRequestId, formData);
+            console.log(`${item.files.length} dosya ${newRequestId} ID'li talebe yüklendi`);
+          } catch (uploadErr) {
+            console.error('Dosya yükleme hatası:', uploadErr);
+            setError('Bazı dosyalar yüklenirken hata oluştu, ancak talepler oluşturuldu.');
+          }
+        }
       }
       
       setSuccess(`${cartItems.length} adet ürün için talep oluşturuldu`);
@@ -169,7 +221,7 @@ const ProductionDashboard = () => {
         setSuccess('');
       }, 3000);
     } catch (err) {
-      setError('Talep oluşturulurken bir hata oluştu');
+      setError('Talep oluşturulurken bir hata oluştu: ' + (err.message || 'Bilinmeyen hata'));
       console.error(err);
     } finally {
       setConversionLoading(false);
@@ -284,6 +336,7 @@ const ProductionDashboard = () => {
                       <Button 
                         variant="primary" 
                         size="sm"
+                        className="me-2 mb-1"
                         onClick={() => handleOpenNewRequestModal(request)}
                       >
                         Talep Oluştur
@@ -291,10 +344,18 @@ const ProductionDashboard = () => {
                       <Button 
                         variant="outline-info" 
                         size="sm"
-                        className="ms-2"
+                        className="me-2 mb-1"
                         onClick={() => handleShowDetails(request)}
                       >
                         Detay
+                      </Button>
+                      <Button 
+                        variant="outline-secondary" 
+                        size="sm"
+                        className="mb-1"
+                        onClick={() => handleShowFilesModal(request.id, true)}
+                      >
+                        <i className="bi bi-file-earmark"></i> Dosyalar
                       </Button>
                     </td>
                   </tr>
@@ -339,9 +400,18 @@ const ProductionDashboard = () => {
                       <Button 
                         variant="info" 
                         size="sm"
+                        className="me-2 mb-1"
                         onClick={() => handleShowDetails(request)}
                       >
                         Detaylar
+                      </Button>
+                      <Button 
+                        variant="outline-secondary" 
+                        size="sm"
+                        className="mb-1"
+                        onClick={() => handleShowFilesModal(request.id, true)}
+                      >
+                        <i className="bi bi-file-earmark"></i> Dosyalar
                       </Button>
                     </td>
                   </tr>
@@ -368,6 +438,7 @@ const ProductionDashboard = () => {
                   <th>Miktar</th>
                   <th>Durum</th>
                   <th>Oluşturma Tarihi</th>
+                  <th>İşlemler</th>
                 </tr>
               </thead>
               <tbody>
@@ -384,6 +455,15 @@ const ProductionDashboard = () => {
                     <td>{request.quantity}</td>
                     <td>{getStatusBadge(request.status)}</td>
                     <td>{new Date(request.createdAt).toLocaleString()}</td>
+                    <td>
+                      <Button 
+                        variant="outline-secondary" 
+                        size="sm"
+                        onClick={() => handleShowFilesModal(request.id, false)}
+                      >
+                        <i className="bi bi-file-earmark"></i> Dosyalar
+                      </Button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -488,6 +568,19 @@ const ProductionDashboard = () => {
                   </div>
                 </div>
               )}
+              
+              {/* Dosya Görüntüleme Butonu */}
+              <div className="d-flex justify-content-end mt-3">
+                <Button 
+                  variant="outline-secondary"
+                  onClick={() => {
+                    setShowDetailsModal(false);
+                    handleShowFilesModal(selectedRequest.id, true);
+                  }}
+                >
+                  <i className="bi bi-file-earmark"></i> Dosyaları Görüntüle
+                </Button>
+              </div>
             </div>
           )}
         </Modal.Body>
@@ -606,7 +699,7 @@ const ProductionDashboard = () => {
                               disabled={isSubmitting || !values.title}
                               className="btn-sm"
                             >
-                              +
+                              <i className="bi bi-plus-lg"></i>
                             </Button>
                           </div>
                         </div>
@@ -620,6 +713,45 @@ const ProductionDashboard = () => {
                             rows="3"
                           />
                           <ErrorMessage name="description" component="div" className="text-danger" />
+                        </div>
+                        
+                        {/* Dosya Yükleme Alanı - YENİ */}
+                        <div className="mb-3">
+                          <label htmlFor="productionFileUpload" className="form-label">Dosya Ekle</label>
+                          <div className="input-group">
+                            <input
+                              type="file"
+                              id="productionFileUpload"
+                              className="form-control"
+                              multiple
+                              onChange={handleFileChange}
+                            />
+                            {selectedFiles.length > 0 && (
+                              <Button
+                                variant="outline-secondary"
+                                onClick={() => {
+                                  setSelectedFiles([]);
+                                  const fileInput = document.getElementById('productionFileUpload');
+                                  if (fileInput) fileInput.value = '';
+                                }}
+                              >
+                                Temizle
+                              </Button>
+                            )}
+                          </div>
+                          {selectedFiles.length > 0 && (
+                            <div className="mt-2">
+                              <Badge bg="info">{selectedFiles.length} dosya seçildi</Badge>
+                              <ul className="list-group mt-2">
+                                {selectedFiles.map((file, index) => (
+                                  <li key={index} className="list-group-item d-flex justify-content-between align-items-center py-2">
+                                    <small>{file.name}</small>
+                                    <Badge bg="secondary" pill>{(file.size / 1024).toFixed(1)} KB</Badge>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
                         </div>
                       </Form>
                     )}
@@ -666,6 +798,16 @@ const ProductionDashboard = () => {
                                 {item.quantity} {getUnitName(item.unit)} | {getUrgencyBadge(item.urgency)}
                               </p>
                               {item.description && <p className="mb-0 text-muted small">{item.description}</p>}
+                              
+                              {/* Seçilen Dosyaları Göster */}
+                              {item.files && item.files.length > 0 && (
+                                <div className="mt-1">
+                                  <small className="text-primary">
+                                    <i className="bi bi-paperclip me-1"></i>
+                                    {item.files.length} dosya ekli
+                                  </small>
+                                </div>
+                              )}
                             </div>
                           </div>
                           <Button 
@@ -706,6 +848,50 @@ const ProductionDashboard = () => {
             disabled={cartItems.length === 0 || conversionLoading}
           >
             {conversionLoading ? 'İşleniyor...' : 'Talepleri Oluştur'}
+          </Button>
+        </Modal.Footer>
+      </Modal>
+      
+      {/* Dosya Görüntüleme Modalı */}
+      <Modal show={showFilesModal} onHide={() => setShowFilesModal(false)} size="lg">
+        <Modal.Header closeButton>
+          <Modal.Title>
+            {selectedSalesRequestId ? 'Satış Talebi Dosyaları' : 'Üretim Talebi Dosyaları'}
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          {(selectedRequestId || selectedSalesRequestId) && (
+            <>
+              <div>
+                {selectedRequestId ? (
+                  <FileViewer 
+                    requestId={selectedRequestId}
+                    refreshTrigger={refreshFiles}
+                  />
+                ) : (
+                  <FileViewer 
+                    salesRequestId={selectedSalesRequestId}
+                    refreshTrigger={refreshFiles}
+                  />
+                )}
+              </div>
+              
+              <hr />
+              
+              <div className="mb-4">
+                <h6>Dosya Yükle</h6>
+                <FileUploader 
+                  requestId={selectedRequestId}
+                  salesRequestId={selectedSalesRequestId}
+                  onUploadSuccess={() => setRefreshFiles(prev => prev + 1)}
+                />
+              </div>
+            </>
+          )}
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowFilesModal(false)}>
+            Kapat
           </Button>
         </Modal.Footer>
       </Modal>

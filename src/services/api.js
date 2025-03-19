@@ -76,7 +76,49 @@ const salesAPI = {
   getProcessingSalesRequests: () => api.get('/sales/processing'),
   getSalesRequestById: (id) => api.get(`/sales/${id}`),
   convertToProductionRequest: (id) => api.post(`/sales/${id}/convert`),
+  uploadFiles: (salesRequestId, formData) => {
+    return api.post(`/attachments/upload-multiple?salesRequestId=${salesRequestId}`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    });
+  }
 };
 
-export { api, authAPI, requestAPI, orderAPI, salesAPI };
+// Ek API
+const attachmentAPI = {
+  uploadFile: (file, requestId, salesRequestId) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    if (requestId) {
+      formData.append('requestId', requestId);
+    }
+    
+    if (salesRequestId) {
+      formData.append('salesRequestId', salesRequestId);
+    }
+    
+    return api.post('/attachments/upload', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    });
+  },
+  uploadFiles: (requestId, formData) => {
+    // RequestId varsa query param olarak ekleyelim
+    const url = requestId ? `/attachments/upload-multiple?requestId=${requestId}` : '/attachments/upload-multiple';
+    
+    return api.post(url, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    });
+  },
+  getAttachmentsByRequestId: (requestId) => api.get(`/attachments/request/${requestId}`),
+  getAttachmentsBySalesRequestId: (salesRequestId) => api.get(`/attachments/sales/${salesRequestId}`),
+  deleteAttachment: (attachmentId) => api.delete(`/attachments/${attachmentId}`),
+};
+
+export { api, authAPI, requestAPI, orderAPI, salesAPI, attachmentAPI };
 export default api;

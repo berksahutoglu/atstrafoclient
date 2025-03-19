@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Table, Button, Modal, Form, Alert, Badge, Tabs, Tab } from 'react-bootstrap';
-import { requestAPI } from '../services/api';
+import { requestAPI, attachmentAPI } from '../services/api';
+import FileViewer from '../components/FileViewer';
 
 const RequestApproval = () => {
   const [activeTab, setActiveTab] = useState('pending');
@@ -31,6 +32,11 @@ const RequestApproval = () => {
   const [status, setStatus] = useState('');
   const [comment, setComment] = useState('');
   const [orderNumber, setOrderNumber] = useState('');
+  
+  // Dosya görüntüleme için state
+  const [showFilesModal, setShowFilesModal] = useState(false);
+  const [selectedRequestId, setSelectedRequestId] = useState(null);
+  const [refreshFiles, setRefreshFiles] = useState(0);
   
   useEffect(() => {
     fetchPendingRequests();
@@ -106,6 +112,12 @@ const RequestApproval = () => {
   
   const handleCloseModal = () => {
     setShowModal(false);
+  };
+  
+  // Dosya görüntüleme modalını açma
+  const handleShowFilesModal = (requestId) => {
+    setSelectedRequestId(requestId);
+    setShowFilesModal(true);
   };
   
   const handleSubmit = async (e) => {
@@ -245,9 +257,18 @@ const RequestApproval = () => {
                       <Button 
                         variant="primary" 
                         size="sm" 
+                        className="me-2 mb-1"
                         onClick={() => handleOpenModal(request)}
                       >
                         Değerlendir
+                      </Button>
+                      <Button 
+                        variant="outline-info" 
+                        size="sm"
+                        className="mb-1"
+                        onClick={() => handleShowFilesModal(request.id)}
+                      >
+                        <i className="bi bi-file-earmark"></i> Dosyalar
                       </Button>
                     </td>
                   </tr>
@@ -294,9 +315,18 @@ const RequestApproval = () => {
                       <Button 
                         variant="success" 
                         size="sm" 
+                        className="me-2 mb-1"
                         onClick={() => handleOpenModal(request, 'ORDERED')}
                       >
                         Sipariş Ver
+                      </Button>
+                      <Button 
+                        variant="outline-info" 
+                        size="sm"
+                        className="mb-1"
+                        onClick={() => handleShowFilesModal(request.id)}
+                      >
+                        <i className="bi bi-file-earmark"></i> Dosyalar
                       </Button>
                     </td>
                   </tr>
@@ -326,6 +356,7 @@ const RequestApproval = () => {
                   <th>Tedarikçi İsmi</th>
                   <th>Sipariş Tarihi</th>
                   <th>Durum</th>
+                  <th>İşlemler</th>
                 </tr>
               </thead>
               <tbody>
@@ -342,6 +373,15 @@ const RequestApproval = () => {
                     </td>
                     <td>{new Date(request.orderDate).toLocaleString()}</td>
                     <td>{getStatusBadge(request.status)}</td>
+                    <td>
+                      <Button 
+                        variant="outline-info" 
+                        size="sm"
+                        onClick={() => handleShowFilesModal(request.id)}
+                      >
+                        <i className="bi bi-file-earmark"></i> Dosyalar
+                      </Button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -370,6 +410,7 @@ const RequestApproval = () => {
                   <th>Teslim Alan</th>
                   <th>Teslim Tarihi</th>
                   <th>Teslimat Notu</th>
+                  <th>İşlemler</th>
                 </tr>
               </thead>
               <tbody>
@@ -386,6 +427,15 @@ const RequestApproval = () => {
                     <td>{request.receiverName}</td>
                     <td>{new Date(request.deliveryDate).toLocaleString()}</td>
                     <td>{request.deliveryNotes || "-"}</td>
+                    <td>
+                      <Button 
+                        variant="outline-info" 
+                        size="sm"
+                        onClick={() => handleShowFilesModal(request.id)}
+                      >
+                        <i className="bi bi-file-earmark"></i> Dosyalar
+                      </Button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -472,6 +522,30 @@ const RequestApproval = () => {
             </>
           )}
         </Modal.Body>
+      </Modal>
+      
+      {/* Dosya Görüntüleme Modalı */}
+      <Modal show={showFilesModal} onHide={() => setShowFilesModal(false)} size="lg">
+        <Modal.Header closeButton>
+          <Modal.Title>Talep Dosyaları</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          {selectedRequestId && (
+            <>
+              <div>
+                <FileViewer 
+                  requestId={selectedRequestId}
+                  refreshTrigger={refreshFiles}
+                />
+              </div>
+            </>
+          )}
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowFilesModal(false)}>
+            Kapat
+          </Button>
+        </Modal.Footer>
       </Modal>
     </div>
   );

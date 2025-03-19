@@ -4,6 +4,8 @@ import * as Yup from 'yup';
 import { Card, Button, Alert, Table, Badge, Modal, ListGroup } from 'react-bootstrap';
 import { salesAPI } from '../services/api';
 import 'bootstrap-icons/font/bootstrap-icons.css';
+import FileViewer from '../components/FileViewer';
+import FileUploader from '../components/FileUploader';
 
 const MultiSalesRequestForm = () => {
   const [requests, setRequests] = useState([]);
@@ -18,6 +20,13 @@ const MultiSalesRequestForm = () => {
   // Detay Modalı
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState(null);
+  
+  // Dosya İşlemleri İçin Eklenen State'ler
+  const [selectedFiles, setSelectedFiles] = useState([]);
+  const [refreshFiles, setRefreshFiles] = useState(0);
+  const [selectedSalesRequestId, setSelectedSalesRequestId] = useState(null);
+  const [showFilesModal, setShowFilesModal] = useState(false);
+  const [cartItemFiles, setCartItemFiles] = useState({});
 
   useEffect(() => {
     fetchSalesRequests();
@@ -62,11 +71,34 @@ const MultiSalesRequestForm = () => {
     requestedDeliveryDate: Yup.date().required('Teslim tarihi gerekli')
   });
 
+  // Dosya seçme işlemi
+  const handleFileChange = (e) => {
+    setSelectedFiles(Array.from(e.target.files));
+  };
+
+  // Dosyaları temizleme işlemi
+  const handleClearFiles = () => {
+    setSelectedFiles([]);
+    const fileInput = document.getElementById('salesRequestFileUpload');
+    if (fileInput) fileInput.value = '';
+  };
+
   // Talebi sepete ekle
   const handleAddToCart = (values, { resetForm }) => {
     // Benzersiz bir geçici ID ekle
-    const itemWithId = { ...values, tempId: Date.now() };
+    const tempId = Date.now();
+    const itemWithId = { ...values, tempId };
     setCartItems([...cartItems, itemWithId]);
+    
+    // Seçili dosyaları ilgili sepet öğesine ekle
+    if (selectedFiles.length > 0) {
+      setCartItemFiles(prev => ({
+        ...prev,
+        [tempId]: [...selectedFiles]
+      }));
+      handleClearFiles(); // Dosya seçimini temizle
+    }
+    
     resetForm();
     setSuccess('Talep sepete eklendi!');
     
@@ -78,11 +110,19 @@ const MultiSalesRequestForm = () => {
   // Sepetteki talebi kaldır
   const handleRemoveFromCart = (tempId) => {
     setCartItems(cartItems.filter(item => item.tempId !== tempId));
+    
+    // Bu öğeye ait dosyaları da kaldır
+    if (cartItemFiles[tempId]) {
+      const updatedCartFiles = { ...cartItemFiles };
+      delete updatedCartFiles[tempId];
+      setCartItemFiles(updatedCartFiles);
+    }
   };
   
   // Sepeti temizle
   const handleClearCart = () => {
     setCartItems([]);
+    setCartItemFiles({});
   };
   
   // Toplu sipariş oluştur
@@ -94,7 +134,7 @@ const MultiSalesRequestForm = () => {
     
     try {
       // Her bir talep için arka arkaya istek yap
-      const promises = cartItems.map(item => {
+      for (const item of cartItems) {
         const requestData = {
           isDomestic: item.isDomestic,
           marketType: item.isDomestic ? 'DOMESTIC' : 'INTERNATIONAL',
@@ -106,13 +146,25 @@ const MultiSalesRequestForm = () => {
           requestedDeliveryDate: item.requestedDeliveryDate,
           notes: item.notes || orderNotes
         };
-        return salesAPI.createSalesRequest(requestData);
-      });
-      
-      await Promise.all(promises);
+        
+        // Talebi oluştur
+        const response = await salesAPI.createSalesRequest(requestData);
+        const newSalesRequestId = response.data.id;
+        
+        // Bu öğeye ait dosyalar varsa yükle
+        if (cartItemFiles[item.tempId] && cartItemFiles[item.tempId].length > 0) {
+          const formData = new FormData();
+          cartItemFiles[item.tempId].forEach(file => {
+            formData.append('files', file);
+          });
+          
+          await salesAPI.uploadFiles(newSalesRequestId, formData);
+        }
+      }
       
       setSuccess('Tüm talepler başarıyla oluşturuldu!');
       setCartItems([]);
+      setCartItemFiles({});
       setOrderNotes('');
       fetchSalesRequests(); // Listeyi güncelle
       
@@ -132,9 +184,32 @@ const MultiSalesRequestForm = () => {
   // Tek talep oluştur
   const handleSubmit = async (values, { setSubmitting, resetForm }) => {
     try {
-      await salesAPI.createSalesRequest(values);
+      const response = await salesAPI.createSalesRequest(values);
+      const newSalesRequestId = response.data.id;
+      
+      // Dosya yükleme işlemi
+      if (selectedFiles.length > 0) {
+        try {
+          const formData = new FormData();
+          selectedFiles.forEach(file => {
+            formData.append('files', file);
+          });
+          
+          await salesAPI.uploadFiles(newSalesRequestId, formData);
+          setRefreshFiles(prev => prev + 1);
+        } catch (uploadErr) {
+          console.error('Dosya yükleme hatası:', uploadErr);
+          setError('Dosyalar yüklenirken bir hata oluştu, ancak talep oluşturuldu.');
+          
+          setTimeout(() => {
+            setError('');
+          }, 3000);
+        }
+      }
+      
       setSuccess('Talep başarıyla oluşturuldu!');
       resetForm();
+      handleClearFiles();
       fetchSalesRequests();
       
       setTimeout(() => {
@@ -155,6 +230,12 @@ const MultiSalesRequestForm = () => {
   const handleShowDetails = (request) => {
     setSelectedRequest(request);
     setShowDetailsModal(true);
+  };
+
+  // Dosya görüntüleme modalını açma
+  const handleShowFilesModal = (salesRequestId) => {
+    setSelectedSalesRequestId(salesRequestId);
+    setShowFilesModal(true);
   };
 
   // Durum badge rengi
@@ -317,6 +398,41 @@ const MultiSalesRequestForm = () => {
                     />
                   </div>
                 </div>
+                
+                {/* Dosya Yükleme Alanı */}
+                <div className="mb-3">
+                  <label htmlFor="salesRequestFileUpload" className="form-label">Dosya Ekle</label>
+                  <div className="input-group">
+                    <input
+                      type="file"
+                      id="salesRequestFileUpload"
+                      className="form-control"
+                      multiple
+                      onChange={handleFileChange}
+                    />
+                    {selectedFiles.length > 0 && (
+                      <Button
+                        variant="outline-secondary"
+                        onClick={handleClearFiles}
+                      >
+                        Temizle
+                      </Button>
+                    )}
+                  </div>
+                  {selectedFiles.length > 0 && (
+                    <div className="mt-2">
+                      <Badge bg="info">{selectedFiles.length} dosya seçildi</Badge>
+                      <ul className="list-group mt-2">
+                        {selectedFiles.map((file, index) => (
+                          <li key={index} className="list-group-item d-flex justify-content-between align-items-center py-2">
+                            <small>{file.name}</small>
+                            <Badge bg="secondary" pill>{(file.size / 1024).toFixed(1)} KB</Badge>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
               </Form>
             )}
           </Formik>
@@ -376,6 +492,13 @@ const MultiSalesRequestForm = () => {
                         Teslim: {new Date(item.requestedDeliveryDate).toLocaleDateString()}
                       </p>
                       {item.notes && <p className="mb-0 text-muted small">Not: {item.notes}</p>}
+                      {cartItemFiles[item.tempId] && cartItemFiles[item.tempId].length > 0 && (
+                        <div className="mt-1">
+                          <small className="text-primary">
+                            <i className="bi bi-paperclip"></i> {cartItemFiles[item.tempId].length} dosya ekli
+                          </small>
+                        </div>
+                      )}
                     </div>
                   </div>
                   <Button 
@@ -425,9 +548,19 @@ const MultiSalesRequestForm = () => {
                   <Button 
                     variant="outline-info" 
                     size="sm"
+                    className="me-2 mb-1"
                     onClick={() => handleShowDetails(request)}
                   >
                     Detaylar
+                  </Button>
+                  
+                  <Button 
+                    variant="outline-secondary" 
+                    size="sm"
+                    className="mb-1"
+                    onClick={() => handleShowFilesModal(request.id)}
+                  >
+                    <i className="bi bi-file-earmark"></i> Dosyalar
                   </Button>
                 </td>
               </tr>
@@ -518,11 +651,50 @@ const MultiSalesRequestForm = () => {
                   </table>
                 </div>
               )}
+              
+              {/* Dosya görüntüleme butonu */}
+              <div className="d-flex justify-content-end mt-3">
+                <Button 
+                  variant="outline-secondary"
+                  onClick={() => {
+                    setShowDetailsModal(false);
+                    handleShowFilesModal(selectedRequest.id);
+                  }}
+                >
+                  <i className="bi bi-file-earmark"></i> Dosyaları Görüntüle
+                </Button>
+              </div>
             </div>
           )}
         </Modal.Body>
         <Modal.Footer>
           <Button variant="secondary" onClick={() => setShowDetailsModal(false)}>
+            Kapat
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* Dosya Görüntüleme Modalı */}
+      <Modal show={showFilesModal} onHide={() => setShowFilesModal(false)} size="lg">
+        <Modal.Header closeButton>
+          <Modal.Title>Sipariş Dosyaları</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          {selectedSalesRequestId && (
+            <>
+              <FileUploader 
+                salesRequestId={selectedSalesRequestId} 
+                onUploadSuccess={() => setRefreshFiles(prev => prev + 1)} 
+              />
+              <FileViewer 
+                salesRequestId={selectedSalesRequestId}
+                refreshTrigger={refreshFiles}
+              />
+            </>
+          )}
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowFilesModal(false)}>
             Kapat
           </Button>
         </Modal.Footer>

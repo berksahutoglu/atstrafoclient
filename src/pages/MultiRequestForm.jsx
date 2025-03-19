@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { Formik, Form, Field, ErrorMessage } from 'formik';
 import * as Yup from 'yup';
 import { Card, Button, Alert, Table, Badge, Modal, ListGroup } from 'react-bootstrap';
-import { requestAPI, orderAPI } from '../services/api';
+import { requestAPI, orderAPI, attachmentAPI } from '../services/api'
 import 'bootstrap-icons/font/bootstrap-icons.css';
+import FileViewer from '../components/FileViewer';
 
 const MultiRequestForm = () => {
   const [requests, setRequests] = useState([]);
@@ -15,11 +16,21 @@ const MultiRequestForm = () => {
   const [cartItems, setCartItems] = useState([]);
   const [orderNotes, setOrderNotes] = useState('');
   
+  // Dosya yükleme için
+  const [selectedFiles, setSelectedFiles] = useState([]);
+  const [fileUploading, setFileUploading] = useState(false);
+  
   // Düzenleme ve silme için
   const [editingRequest, setEditingRequest] = useState(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteId, setDeleteId] = useState(null);
+  
+  // Dosya önizleme için
+  const [showFilesModal, setShowFilesModal] = useState(false);
+  const [selectedRequestId, setSelectedRequestId] = useState(null);
+
+  const [refreshFiles, setRefreshFiles] = useState(0);
 
   useEffect(() => {
     // Kullanıcının daha önce yaptığı talepleri getir
@@ -58,12 +69,38 @@ const MultiRequestForm = () => {
     urgency: Yup.string().required('Aciliyet seviyesi gerekli')
   });
 
+  // Dosya ekle
+  const handleFileChange = (e) => {
+    if (e.target.files) {
+      setSelectedFiles(Array.from(e.target.files));
+    }
+  };
+
+  // Dosyaları temizle
+  const handleClearFiles = () => {
+    setSelectedFiles([]);
+    // Dosya input alanını sıfırla
+    const fileInput = document.getElementById('fileUpload');
+    if (fileInput) fileInput.value = '';
+  };
+
   // Talebi sepete ekle
   const handleAddToCart = (values, { resetForm }) => {
     // Benzersiz bir geçici ID ekle
-    const itemWithId = { ...values, tempId: Date.now() };
+    const itemWithId = { 
+      ...values, 
+      tempId: Date.now(),
+      files: selectedFiles.length > 0 ? [...selectedFiles] : []
+    };
+    
     setCartItems([...cartItems, itemWithId]);
     resetForm();
+    setSelectedFiles([]); // Dosya seçimini sıfırla
+    
+    // Dosya input alanını sıfırla
+    const fileInput = document.getElementById('fileUpload');
+    if (fileInput) fileInput.value = '';
+    
     setSuccess('Talep sepete eklendi!');
     
     setTimeout(() => {
@@ -89,6 +126,8 @@ const MultiRequestForm = () => {
     }
     
     try {
+      setFileUploading(true);
+      
       // OrderDto formatını oluştur
       const orderDto = {
         notes: orderNotes,
@@ -101,8 +140,32 @@ const MultiRequestForm = () => {
         }))
       };
       
-      await orderAPI.createOrder(orderDto);
-      setSuccess('Sipariş başarıyla oluşturuldu!');
+      // Siparişi oluştur ve oluşturulan taleplerin ID'lerini al
+      const orderResponse = await orderAPI.createOrder(orderDto);
+      const createdRequests = orderResponse.data.requests || [];
+      
+      // Dosya yüklemesi gerekiyorsa, her talep için dosyaları yükle
+      const fileUploadPromises = [];
+      
+      cartItems.forEach((cartItem, index) => {
+        if (cartItem.files && cartItem.files.length > 0 && createdRequests[index]) {
+          const requestId = createdRequests[index].id;
+          
+          const formData = new FormData();
+          cartItem.files.forEach(file => {
+            formData.append('files', file);
+          });
+          
+          fileUploadPromises.push(attachmentAPI.uploadFiles(requestId, formData));
+        }
+      });
+      
+      // Tüm dosya yükleme işlemlerini tamamla
+      if (fileUploadPromises.length > 0) {
+        await Promise.all(fileUploadPromises);
+      }
+      
+      setSuccess('Sipariş ve dosyaları başarıyla yüklendi!');
       setCartItems([]);
       setOrderNotes('');
       fetchRequests(); // Listeyi güncelle
@@ -117,6 +180,8 @@ const MultiRequestForm = () => {
       setTimeout(() => {
         setError('');
       }, 3000);
+    } finally {
+      setFileUploading(false);
     }
   };
   
@@ -197,6 +262,12 @@ const MultiRequestForm = () => {
         setError('');
       }, 3000);
     }
+  };
+
+  // Dosya görüntüleme modalını aç
+  const handleShowFilesModal = (requestId) => {
+    setSelectedRequestId(requestId);
+    setShowFilesModal(true);
   };
 
   // Birim adını getir
@@ -327,6 +398,43 @@ const MultiRequestForm = () => {
                   />
                   <ErrorMessage name="description" component="div" className="text-danger" />
                 </div>
+
+                {/* Dosya Yükleme Alanı - YENİ */}
+                <div className="mb-3">
+                  <label htmlFor="fileUpload" className="form-label">Dosya Ekle</label>
+                  <div className="input-group">
+                    <input
+                      type="file"
+                      id="fileUpload"
+                      className="form-control"
+                      multiple
+                      onChange={handleFileChange}
+                    />
+                    {selectedFiles.length > 0 && (
+                      <Button
+                        variant="outline-secondary"
+                        onClick={handleClearFiles}
+                      >
+                        Temizle
+                      </Button>
+                    )}
+                  </div>
+                  {selectedFiles.length > 0 && (
+                    <div className="mt-2">
+                      <Badge bg="info" className="mb-2">{selectedFiles.length} dosya seçildi</Badge>
+                      <div className="border rounded p-2 bg-light">
+                        <ul className="list-unstyled mb-0">
+                          {selectedFiles.map((file, idx) => (
+                            <li key={idx} className="small">
+                              <i className="bi bi-paperclip me-1"></i>
+                              {file.name} <span className="text-muted">({(file.size / 1024).toFixed(1)} KB)</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </Form>
             )}
           </Formik>
@@ -345,6 +453,7 @@ const MultiRequestForm = () => {
                   size="sm"
                   className="me-2"
                   onClick={handleClearCart}
+                  disabled={fileUploading}
                 >
                   <i className="bi bi-trash"></i> Sepeti Temizle
                 </Button>
@@ -352,8 +461,18 @@ const MultiRequestForm = () => {
                   variant="success" 
                   size="sm"
                   onClick={handleCreateOrder}
+                  disabled={fileUploading}
                 >
-                  <i className="bi bi-check-lg"></i> Sipariş Oluştur
+                  {fileUploading ? (
+                    <>
+                      <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                      Yükleniyor...
+                    </>
+                  ) : (
+                    <>
+                      <i className="bi bi-check-lg"></i> Sipariş Oluştur
+                    </>
+                  )}
                 </Button>
               </div>
             </div>
@@ -382,12 +501,23 @@ const MultiRequestForm = () => {
                         {item.quantity} {getUnitName(item.unit)} | {getUrgencyBadge(item.urgency)}
                       </p>
                       {item.description && <p className="mb-0 text-muted small">{item.description}</p>}
+                      
+                      {/* Seçilen Dosyaları Göster - YENİ */}
+                      {item.files && item.files.length > 0 && (
+                        <div className="mt-1">
+                          <small className="text-primary">
+                            <i className="bi bi-paperclip me-1"></i>
+                            {item.files.length} dosya ekli
+                          </small>
+                        </div>
+                      )}
                     </div>
                   </div>
                   <Button 
                     variant="outline-danger" 
                     size="sm"
                     onClick={() => handleRemoveFromCart(item.tempId)}
+                    disabled={fileUploading}
                   >
                     <i className="bi bi-x-lg"></i>
                   </Button>
@@ -430,12 +560,21 @@ const MultiRequestForm = () => {
                 <td>{new Date(request.createdAt).toLocaleString()}</td>
                 <td>{request.comment}</td>
                 <td>
+                  <Button 
+                    variant="outline-info" 
+                    size="sm" 
+                    className="me-2 mb-1"
+                    onClick={() => handleShowFilesModal(request.id)}
+                  >
+                    <i className="bi bi-file-earmark"></i> Dosyalar
+                  </Button>
+                  
                   {request.status === 'PENDING' && (
                     <>
                       <Button 
                         variant="outline-primary" 
                         size="sm" 
-                        className="me-2"
+                        className="me-2 mb-1"
                         onClick={() => handleEditRequest(request)}
                       >
                         Düzenle
@@ -443,6 +582,7 @@ const MultiRequestForm = () => {
                       <Button 
                         variant="outline-danger" 
                         size="sm"
+                        className="mb-1"
                         onClick={() => handleShowDeleteModal(request.id)}
                       >
                         Sil
@@ -567,6 +707,74 @@ const MultiRequestForm = () => {
           </Button>
           <Button variant="danger" onClick={handleDeleteRequest}>
             Sil
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* Dosya Görüntüleme Modalı - YENİ */}
+      <Modal show={showFilesModal} onHide={() => setShowFilesModal(false)} size="lg">
+        <Modal.Header closeButton>
+          <Modal.Title>Talep Dosyaları</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          {selectedRequestId && (
+            <>
+              <div className="mb-4">
+                <h6>Dosya Yükle</h6>
+                <div className="d-flex">
+                  <input
+                    type="file"
+                    className="form-control me-2"
+                    multiple
+                    id="requestFileUpload"
+                  />
+                  <Button 
+                    variant="primary"
+                    onClick={() => {
+                      const files = document.getElementById('requestFileUpload').files;
+                      if (files.length > 0) {
+                        const formData = new FormData();
+                        Array.from(files).forEach(file => {
+                          formData.append('files', file);
+                        });
+                        
+                        // Dosya yükleme işlemi
+                        attachmentAPI.uploadFiles(selectedRequestId, formData)
+                          .then(() => {
+                            setSuccess('Dosyalar başarıyla yüklendi!');
+                            setRefreshFiles(prev => prev + 1); // Dosya listesini yenilemek için
+                            
+                            // Input alanını temizle
+                            const fileInput = document.getElementById('requestFileUpload');
+                            if (fileInput) fileInput.value = '';
+                          })
+                          .catch(err => {
+                            setError('Dosya yüklenirken bir hata oluştu: ' + (err.message || 'Bilinmeyen hata'));
+                            console.error('Modal upload error:', err);
+                          });
+                      } else {
+                        setError('Lütfen en az bir dosya seçin.');
+                      }
+                    }}
+                  >
+                    Yükle
+                  </Button>
+                </div>
+              </div>
+              
+              <div>
+                <h6>Mevcut Dosyalar</h6>
+                <FileViewer 
+                  requestId={selectedRequestId}
+                  refreshTrigger={refreshFiles}
+                />
+              </div>
+            </>
+          )}
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowFilesModal(false)}>
+            Kapat
           </Button>
         </Modal.Footer>
       </Modal>
