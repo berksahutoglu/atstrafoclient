@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Card, ListGroup, Button, Alert, Spinner } from 'react-bootstrap';
 import { attachmentAPI } from '../services/api';
+import { API_URL } from '../services/api';
 
 const FileViewer = ({ requestId, salesRequestId, refreshTrigger }) => {
   const [attachments, setAttachments] = useState([]);
@@ -44,7 +45,8 @@ const FileViewer = ({ requestId, salesRequestId, refreshTrigger }) => {
       }
       
       // Fetch API ile dosyayı indir (token ile birlikte)
-      const response = await fetch(`${process.env.REACT_APP_API_URL || 'https://web-production-5d8c.up.railway.app'}/api/attachments/${attachmentId}/download`, {
+      const response = await fetch(`${API_URL}/attachments/${attachmentId}/download`, {
+
         headers: {
           'Authorization': `Bearer ${token}`
         }

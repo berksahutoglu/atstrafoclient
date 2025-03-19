@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = 'https://web-production-5d8c.up.railway.app/api';
+export const API_URL = 'https://web-production-5d8c.up.railway.app/api';
 
 // Axios instance oluşturma
 const api = axios.create({
