@@ -42,6 +42,23 @@ api.interceptors.response.use(
 );
 
 // API Endpoint Fonksiyonları
+const projectAPI = {
+  getAllProjects: () => api.get("/projects"),
+  getProjectById: (id) => api.get(`/projects/${id}`),
+  createProject: (projectData) => api.post("/projects", projectData),
+  updateProject: (id, projectData) => api.put(`/projects/${id}`, projectData),
+  deleteProject: (id) => api.delete(`/projects/${id}`),
+  getProjectsByStatus: (status) => api.get(`/projects/status/${status}`),
+  updateProjectStatus: (id, statusData) =>
+    api.put(`/projects/${id}/status?status=${statusData.status}`),
+  addRequestToProject: (projectId, requestId) =>
+    api.post(`/projects/${projectId}/requests/${requestId}`),
+  removeRequestFromProject: (projectId, requestId) =>
+    api.delete(`/projects/${projectId}/requests/${requestId}`),
+  getProjectsByDateRange: (startDate, endDate) =>
+    api.get(`/projects/date-range?startDate=${startDate}&endDate=${endDate}`),
+};
+
 const authAPI = {
   login: (credentials) => api.post("/auth/login", credentials),
 };
@@ -54,6 +71,9 @@ const requestAPI = {
   getOrderedRequests: () => api.get("/requests/ordered"),
   getDeliveredRequests: () => api.get("/requests/delivered"),
   getProductionRequests: () => api.get("/requests/production"),
+  getPendingProductionRequests: () => api.get("/requests/production/pending"),
+  getRequestsByProject: (projectId) =>
+    api.get(`/requests/project/${projectId}`),
   updateStatus: (id, statusData) =>
     api.put(`/requests/${id}/status`, statusData),
   deliverRequest: (id, deliveryData) =>
@@ -74,12 +94,21 @@ const orderAPI = {
 const salesAPI = {
   createSalesRequest: (requestData) => api.post("/sales", requestData),
   updateSalesRequest: (id, requestData) => api.put(`/sales/${id}`, requestData),
+  updateSalesRequestStatus: (id, statusData) =>
+    api.put(`/sales/${id}/status`, statusData),
   getMySalesRequests: () => api.get("/sales/my-requests"),
   getPendingSalesRequests: () => api.get("/sales/pending"),
   getAllSalesRequests: () => api.get("/sales/all"),
   getProcessingSalesRequests: () => api.get("/sales/processing"),
   getSalesRequestById: (id) => api.get(`/sales/${id}`),
+  getRequestsByProject: (projectId) => api.get(`/sales/project/${projectId}`),
   convertToProductionRequest: (id) => api.post(`/sales/${id}/convert`),
+  getRequestsByProjectAndStatus: (projectId, status) =>
+    api.get(`/sales/project/${projectId}/status/${status}`),
+  getProjectStats: () => api.get(`/sales/project-stats`),
+  getRequestsByStatusList: (statusList) =>
+    api.get(`/sales/status-list?statuses=${statusList.join(",")}`),
+
   uploadFiles: (salesRequestId, formData) => {
     return api.post(
       `/attachments/upload-multiple?salesRequestId=${salesRequestId}`,
@@ -133,5 +162,13 @@ const attachmentAPI = {
     api.delete(`/attachments/${attachmentId}`),
 };
 
-export { api, authAPI, requestAPI, orderAPI, salesAPI, attachmentAPI };
+export {
+  api,
+  authAPI,
+  requestAPI,
+  orderAPI,
+  salesAPI,
+  attachmentAPI,
+  projectAPI,
+};
 export default api;

@@ -10,7 +10,7 @@ import {
   Modal,
   ListGroup,
 } from "react-bootstrap";
-import { salesAPI } from "../services/api";
+import { salesAPI, projectAPI } from "../services/api";
 import "bootstrap-icons/font/bootstrap-icons.css";
 import FileViewer from "../components/FileViewer";
 import FileUploader from "../components/FileUploader";
@@ -24,6 +24,8 @@ const MultiSalesRequestForm = () => {
   // Sepet (çoklu talep için)
   const [cartItems, setCartItems] = useState([]);
   const [orderNotes, setOrderNotes] = useState("");
+  const [selectedProjectId, setSelectedProjectId] = useState("");
+  const [projects, setProjects] = useState([]);
 
   // Düzenleme için yeni state'ler ve fonksiyonlar
   const [showEditModal, setShowEditModal] = useState(false);
@@ -41,7 +43,18 @@ const MultiSalesRequestForm = () => {
 
   useEffect(() => {
     fetchSalesRequests();
+    fetchProjects();
   }, []);
+  
+  // Projeleri getir
+  const fetchProjects = async () => {
+    try {
+      const response = await projectAPI.getAllProjects();
+      setProjects(response.data);
+    } catch (err) {
+      console.error("Projeler yüklenirken bir hata oluştu:", err);
+    }
+  };
 
   const fetchSalesRequests = async () => {
     try {
@@ -140,6 +153,7 @@ const MultiSalesRequestForm = () => {
   const handleClearCart = () => {
     setCartItems([]);
     setCartItemFiles({});
+    setSelectedProjectId(""); // Proje seçimini de temizle
   };
 
   // Toplu sipariş oluştur
@@ -165,6 +179,7 @@ const MultiSalesRequestForm = () => {
           isAPlus: item.isDomestic && item.isAPlus,
           requestedDeliveryDate: item.requestedDeliveryDate,
           notes: item.notes || orderNotes,
+          projectId: selectedProjectId || null,
         };
 
         // Talebi oluştur
@@ -189,6 +204,7 @@ const MultiSalesRequestForm = () => {
       setCartItems([]);
       setCartItemFiles({});
       setOrderNotes("");
+      setSelectedProjectId("");
       fetchSalesRequests(); // Listeyi güncelle
 
       setTimeout(() => {
@@ -672,18 +688,42 @@ const MultiSalesRequestForm = () => {
             </div>
           </Card.Header>
           <Card.Body>
-            <div className="mb-3">
-              <label htmlFor="orderNotes" className="form-label">
-                Genel Notlar
-              </label>
-              <textarea
-                id="orderNotes"
-                className="form-control"
-                rows="2"
-                value={orderNotes}
-                onChange={(e) => setOrderNotes(e.target.value)}
-                placeholder="Tüm siparişlerle ilgili eklemek istediğiniz notlar"
-              />
+            <div className="row">
+              <div className="col-md-8">
+                <div className="mb-3">
+                  <label htmlFor="orderNotes" className="form-label">
+                    Genel Notlar
+                  </label>
+                  <textarea
+                    id="orderNotes"
+                    className="form-control"
+                    rows="2"
+                    value={orderNotes}
+                    onChange={(e) => setOrderNotes(e.target.value)}
+                    placeholder="Tüm siparişlerle ilgili eklemek istediğiniz notlar"
+                  />
+                </div>
+              </div>
+              <div className="col-md-4">
+                <div className="mb-3">
+                  <label htmlFor="projectSelect" className="form-label">
+                    Proje Seç
+                  </label>
+                  <select
+                    id="projectSelect"
+                    className="form-select"
+                    value={selectedProjectId}
+                    onChange={(e) => setSelectedProjectId(e.target.value)}
+                  >
+                    <option value="">Proje seçiniz...</option>
+                    {projects.map((project) => (
+                      <option key={project.id} value={project.id}>
+                        {project.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
             </div>
 
             <ListGroup variant="flush">
@@ -757,6 +797,7 @@ const MultiSalesRequestForm = () => {
               <th>Sargı Tipi</th>
               <th>Adet</th>
               <th>Teslim Tarihi</th>
+              <th>Proje</th>
               <th>Durum</th>
               <th>İşlemler</th>
             </tr>
@@ -775,6 +816,9 @@ const MultiSalesRequestForm = () => {
                 <td>{request.quantity}</td>
                 <td>
                   {new Date(request.requestedDeliveryDate).toLocaleDateString()}
+                </td>
+                <td>
+                  {request.projectName || "-"}
                 </td>
                 <td>{getStatusBadge(request.status)}</td>
                 <td>
@@ -892,6 +936,10 @@ const MultiSalesRequestForm = () => {
                       <td>{selectedRequest.notes}</td>
                     </tr>
                   )}
+                  <tr>
+                    <th>Proje</th>
+                    <td>{selectedRequest.projectName || "-"}</td>
+                  </tr>
                 </tbody>
               </table>
 

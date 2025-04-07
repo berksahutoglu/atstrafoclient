@@ -9,38 +9,31 @@ import {
   Tab,
   Modal,
   ListGroup,
+  Accordion,
+  Spinner,
 } from "react-bootstrap";
 import { Formik, Form, Field, ErrorMessage } from "formik";
 import * as Yup from "yup";
-import { salesAPI, requestAPI, attachmentAPI } from "../services/api";
+import {
+  salesAPI,
+  requestAPI,
+  attachmentAPI,
+  projectAPI,
+} from "../services/api";
 import FileViewer from "../components/FileViewer";
 import FileUploader from "../components/FileUploader";
 
 const ProductionDashboard = () => {
-  const [activeTab, setActiveTab] = useState("all");
-  // Bekleyen satış talepleri
-  const [pendingSalesRequests, setPendingSalesRequests] = useState([]);
-  const [loadingPending, setLoadingPending] = useState(true);
-
-  // İşleme alınan satış talepleri
-  const [processingSalesRequests, setProcessingSalesRequests] = useState([]);
-  const [loadingProcessing, setLoadingProcessing] = useState(true);
-
-  // Üretim talepleri
-  const [productionRequests, setProductionRequests] = useState([]);
-  const [loadingProduction, setLoadingProduction] = useState(true);
-
-  // Yeni talep yapısı için
-  const [cartItems, setCartItems] = useState([]);
-  const [orderNotes, setOrderNotes] = useState("");
-
-  // Genel state
+  const [activeTab, setActiveTab] = useState("pending");
+  const [projects, setProjects] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
   // Modal state
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState(null);
+  const [selectedProject, setSelectedProject] = useState(null);
 
   // Yeni talep modal
   const [showNewRequestModal, setShowNewRequestModal] = useState(false);
@@ -55,72 +48,105 @@ const ProductionDashboard = () => {
   const [refreshFiles, setRefreshFiles] = useState(0);
   const [selectedFiles, setSelectedFiles] = useState([]);
 
-  const [allSalesRequests, setAllSalesRequests] = useState([]);
-  const [loadingAllRequests, setLoadingAllRequests] = useState(true);
+  // Sepet (talep oluşturma için)
+  const [cartItems, setCartItems] = useState([]);
+  const [orderNotes, setOrderNotes] = useState("");
 
-  const fetchAllSalesRequests = async () => {
-    try {
-      setLoadingAllRequests(true);
-      const response = await salesAPI.getAllSalesRequests(); // Bu API endpoint'in mevcut olduğunu varsayıyorum
-      setAllSalesRequests(response.data);
-      setError("");
-    } catch (err) {
-      setError("Tüm talepler yüklenirken bir hata oluştu.");
-      console.error(err);
-    } finally {
-      setLoadingAllRequests(false);
-    }
+  // Proje detay modalı
+  const [showProjectDetailModal, setShowProjectDetailModal] = useState(false);
+  const [projectRequests, setProjectRequests] = useState([]);
+  const [loadingProjectRequests, setLoadingProjectRequests] = useState(false);
+
+  // Talep edilenleri göster/gizle
+  const [showRequested, setShowRequested] = useState(true);
+
+  // Satış taleplerinin ilgili diğer taleplerini göstermek için modal
+  const [showRelatedRequestsModal, setShowRelatedRequestsModal] =
+    useState(false);
+  const [relatedRequests, setRelatedRequests] = useState([]);
+  const [parentSalesRequest, setParentSalesRequest] = useState(null);
+
+  // İlişkili talepleri gösterme fonksiyonu
+  const showRelatedRequests = (requests, salesRequest) => {
+    setRelatedRequests(requests);
+    setParentSalesRequest(salesRequest);
+    setShowRelatedRequestsModal(true);
   };
 
   useEffect(() => {
-    fetchAllSalesRequests();
-    fetchPendingSalesRequests();
-    fetchProcessingSalesRequests();
-    fetchProductionRequests();
-  }, []);
+    fetchProjects();
+  }, [activeTab]);
 
-  const fetchPendingSalesRequests = async () => {
+  // Duruma göre projeleri getir
+  const fetchProjects = async () => {
     try {
-      setLoadingPending(true);
-      const response = await salesAPI.getPendingSalesRequests();
-      setPendingSalesRequests(response.data);
+      setLoading(true);
+      let response;
+
+      switch (activeTab) {
+        case "pending":
+          response = await projectAPI.getProjectsByStatus("PENDING");
+          break;
+        case "inprogress":
+          // Hem IN_PROGRESS hem de ORDERED durumundaki projeleri çek
+          const inProgressResponse = await projectAPI.getProjectsByStatus(
+            "IN_PROGRESS"
+          );
+          const orderedResponse = await projectAPI.getProjectsByStatus(
+            "ORDERED"
+          );
+
+          // İki response'u birleştir
+          response = {
+            data: [...inProgressResponse.data, ...orderedResponse.data],
+          };
+          break;
+        case "inproduction":
+          response = await projectAPI.getProjectsByStatus("IN_PRODUCTION");
+          break;
+        case "completed":
+          response = await projectAPI.getProjectsByStatus("COMPLETED");
+          break;
+        default:
+          response = await projectAPI.getAllProjects();
+      }
+
+      setProjects(response.data);
       setError("");
     } catch (err) {
-      setError("Bekleyen talepler yüklenirken bir hata oluştu.");
+      setError("Projeler yüklenirken bir hata oluştu.");
       console.error(err);
     } finally {
-      setLoadingPending(false);
+      setLoading(false);
     }
   };
 
-  const fetchProcessingSalesRequests = async () => {
+  // Proje detayları için talepleri getir
+  const fetchProjectRequests = async (projectId) => {
     try {
-      setLoadingProcessing(true);
-      const response = await salesAPI.getProcessingSalesRequests();
-      setProcessingSalesRequests(response.data);
+      setLoadingProjectRequests(true);
+
+      // Sales taleplerini getir
+      const salesResponse = await salesAPI.getRequestsByProject(projectId);
+
+      setProjectRequests(salesResponse.data);
       setError("");
     } catch (err) {
-      setError("İşlenen talepler yüklenirken bir hata oluştu.");
+      setError("Proje talepleri yüklenirken bir hata oluştu.");
       console.error(err);
     } finally {
-      setLoadingProcessing(false);
+      setLoadingProjectRequests(false);
     }
   };
 
-  const fetchProductionRequests = async () => {
-    try {
-      setLoadingProduction(true);
-      const response = await requestAPI.getProductionRequests();
-      setProductionRequests(response.data);
-      setError("");
-    } catch (err) {
-      setError("Üretim talepleri yüklenirken bir hata oluştu.");
-      console.error(err);
-    } finally {
-      setLoadingProduction(false);
-    }
+  // Proje detaylarını göster
+  const handleShowProjectDetail = (project) => {
+    setSelectedProject(project);
+    setShowProjectDetailModal(true);
+    fetchProjectRequests(project.id);
   };
 
+  // Satış talebi detaylarını göster
   const handleShowDetails = (request) => {
     setSelectedRequest(request);
     setShowDetailsModal(true);
@@ -142,6 +168,7 @@ const ProductionDashboard = () => {
   const handleOpenNewRequestModal = (salesRequest) => {
     // Satış talebini kaydet
     setRelatedSalesRequest(salesRequest);
+    console.log("İlgili satış talebi:", salesRequest);
 
     // Talep oluşturma modalını aç
     setShowNewRequestModal(true);
@@ -186,6 +213,48 @@ const ProductionDashboard = () => {
     setOrderNotes("");
   };
 
+  // Projeyi üretime gönderme
+  const handleSendToProduction = async (projectId) => {
+    try {
+      setLoading(true);
+      await projectAPI.updateProjectStatus(projectId, {
+        status: "IN_PRODUCTION",
+      });
+      setSuccess("Proje üretime verildi.");
+      setShowProjectDetailModal(false);
+      fetchProjects();
+
+      setTimeout(() => {
+        setSuccess("");
+      }, 3000);
+    } catch (err) {
+      setError("Proje durumu güncellenirken bir hata oluştu.");
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Projeyi tamamlama
+  const handleCompleteProject = async (projectId) => {
+    try {
+      setLoading(true);
+      await projectAPI.updateProjectStatus(projectId, { status: "COMPLETED" });
+      setSuccess("Proje tamamlandı.");
+      setShowProjectDetailModal(false);
+      fetchProjects();
+
+      setTimeout(() => {
+        setSuccess("");
+      }, 3000);
+    } catch (err) {
+      setError("Proje durumu güncellenirken bir hata oluştu.");
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Tüm sepeti onaylayıp talep oluşturma
   const handleCreateOrder = async () => {
     if (cartItems.length === 0) {
@@ -196,7 +265,7 @@ const ProductionDashboard = () => {
     try {
       setConversionLoading(true);
 
-      // İlk önce satış talebinin durumunu güncelle
+      // İlk önce satış talebinin durumunu CONVERTED olarak güncelle
       await salesAPI.convertToProductionRequest(relatedSalesRequest.id);
 
       // Her bir sepet ürünü için bir talep oluştur
@@ -210,6 +279,7 @@ const ProductionDashboard = () => {
           urgency: item.urgency,
           salesRequestId: relatedSalesRequest.id,
           createdByProduction: true,
+          projectId: relatedSalesRequest.projectId || null, // Proje ilişkisini de ekle
         };
 
         console.log("Gönderilen talep verisi:", requestData);
@@ -238,16 +308,28 @@ const ProductionDashboard = () => {
         }
       }
 
+      // Eğer proje durumu PENDING ise durumunu IN_PROGRESS olarak güncelle
+      if (relatedSalesRequest && relatedSalesRequest.projectId) {
+        const projectInfo = await projectAPI.getProjectById(
+          relatedSalesRequest.projectId
+        );
+        if (projectInfo.data && projectInfo.data.status === "PENDING") {
+          await projectAPI.updateProjectStatus(relatedSalesRequest.projectId, {
+            status: "IN_PROGRESS",
+          });
+        }
+      }
+
       setSuccess(`${cartItems.length} adet ürün için talep oluşturuldu`);
       setCartItems([]);
       setOrderNotes("");
       setShowNewRequestModal(false);
 
       // Sayfaları yenile
-      fetchPendingSalesRequests();
-      fetchProcessingSalesRequests();
-      fetchProductionRequests();
-      fetchAllSalesRequests();
+      fetchProjects();
+      if (selectedProject) {
+        fetchProjectRequests(selectedProject.id);
+      }
 
       setTimeout(() => {
         setSuccess("");
@@ -286,7 +368,7 @@ const ProductionDashboard = () => {
       case "APPROVED":
         return <Badge bg="success">Onaylandı</Badge>;
       case "ORDERED":
-        return <Badge bg="warning">Sipariş Verildi</Badge>;
+        return <Badge bg="warning">Siparişi Verildi</Badge>;
       case "DELIVERED":
         return (
           <Badge bg="light" text="dark">
@@ -297,6 +379,10 @@ const ProductionDashboard = () => {
         return <Badge bg="success">Tamamlandı</Badge>;
       case "CANCELLED":
         return <Badge bg="danger">İptal Edildi</Badge>;
+      case "IN_PROGRESS":
+        return <Badge bg="primary">Devam Ediyor</Badge>;
+      case "IN_PRODUCTION":
+        return <Badge bg="info">Üretimde</Badge>;
       default:
         return <Badge bg="secondary">{status}</Badge>;
     }
@@ -342,6 +428,20 @@ const ProductionDashboard = () => {
     }
   };
 
+  // Talep edildi mi kontrolü
+  const isRequestProcessed = (request) => {
+    return request.status === "PROCESSING" || request.status === "CONVERTED";
+  };
+
+  // Projeyi filtrele
+  const filterProjectRequests = (requests) => {
+    if (showRequested) {
+      return requests;
+    } else {
+      return requests.filter((request) => !isRequestProcessed(request));
+    }
+  };
+
   return (
     <div className="container">
       <h2 className="mb-4">Üretim Planlama Paneli</h2>
@@ -354,266 +454,175 @@ const ProductionDashboard = () => {
         onSelect={(k) => setActiveTab(k)}
         className="mb-4"
       >
-        <Tab eventKey="all" title="Tüm Satış Talepleri">
-          {loadingAllRequests ? (
-            <p>Yükleniyor...</p>
-          ) : allSalesRequests.length > 0 ? (
-            <Table striped bordered hover responsive>
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th>Pazar</th>
-                  <th>Ülke</th>
-                  <th>Güç</th>
-                  <th>Gerilim</th>
-                  <th>Adet</th>
-                  <th>Durum</th>
-                  <th>Oluşturma Tarihi</th>
-                  <th>Teslim Tarihi</th>
-                  <th>İşlemler</th>
-                </tr>
-              </thead>
-              <tbody>
-                {allSalesRequests.map((request, index) => (
-                  <tr key={request.id}>
-                    <td>{index + 1}</td>
-                    <td>{request.domestic ? "Yurtiçi" : "Yurtdışı"}</td>
-                    <td>{request.country}</td>
-                    <td>{request.power}</td>
-                    <td>{request.outputPower}</td>
-                    <td>{request.quantity}</td>
-                    <td>{getStatusBadge(request.status)}</td>
-                    <td>
-                      {request.createdAt
-                        ? new Date(request.createdAt).toLocaleString()
-                        : "-"}
-                    </td>
-                    <td>
-                      {request.requestedDeliveryDate
-                        ? new Date(
-                            request.requestedDeliveryDate
-                          ).toLocaleDateString("tr-TR")
-                        : "-"}
-                    </td>
-                    <td>
-                      <Button
-                        variant="outline-info"
-                        size="sm"
-                        className="me-2 mb-1"
-                        onClick={() => handleShowDetails(request)}
-                      >
-                        Detay
-                      </Button>
-                      <Button
-                        variant="outline-secondary"
-                        size="sm"
-                        className="mb-1"
-                        onClick={() => handleShowFilesModal(request.id, true)}
-                      >
-                        <i className="bi bi-file-earmark"></i> Dosyalar
-                      </Button>
-                      {request.status === "PENDING" && (
-                        <Button
-                          variant="primary"
-                          size="sm"
-                          className="ms-2 mb-1"
-                          onClick={() => handleOpenNewRequestModal(request)}
-                        >
-                          Talep Oluştur
-                        </Button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </Table>
-          ) : (
-            <div className="text-center p-4 border rounded bg-light">
-              <p className="mb-0">Satış talebi bulunmamaktadır.</p>
-            </div>
-          )}
+        <Tab eventKey="pending" title="Bekleyen Projeler">
+          {renderProjectsContent()}
         </Tab>
-        <Tab eventKey="pending" title="Bekleyen Satış Talepleri">
-          {loadingPending ? (
-            <p>Yükleniyor...</p>
-          ) : pendingSalesRequests.length > 0 ? (
-            <Table striped bordered hover responsive>
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th>Pazar</th>
-                  <th>Ülke</th>
-                  <th>Güç</th>
-                  <th>Gerilim</th>
-                  <th>Adet</th>
-                  <th>Teslim Tarihi</th>
-                  <th>İşlemler</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pendingSalesRequests.map((request, index) => (
-                  <tr key={request.id}>
-                    <td>{index + 1}</td>
-                    <td>{request.domestic ? "Yurtiçi" : "Yurtdışı"}</td>
-                    <td>{request.country}</td>
-                    <td>{request.power}</td>
-                    <td>{request.outputPower}</td>
-                    <td>{request.quantity}</td>
-                    <td>
-                      {new Date(
-                        request.requestedDeliveryDate
-                      ).toLocaleDateString()}
-                    </td>
-                    <td>
-                      <Button
-                        variant="primary"
-                        size="sm"
-                        className="me-2 mb-1"
-                        onClick={() => handleOpenNewRequestModal(request)}
-                      >
-                        Talep Oluştur
-                      </Button>
-                      <Button
-                        variant="outline-info"
-                        size="sm"
-                        className="me-2 mb-1"
-                        onClick={() => handleShowDetails(request)}
-                      >
-                        Detay
-                      </Button>
-                      <Button
-                        variant="outline-secondary"
-                        size="sm"
-                        className="mb-1"
-                        onClick={() => handleShowFilesModal(request.id, true)}
-                      >
-                        <i className="bi bi-file-earmark"></i> Dosyalar
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </Table>
-          ) : (
-            <div className="text-center p-4 border rounded bg-light">
-              <p className="mb-0">Bekleyen satış talebi bulunmamaktadır.</p>
-            </div>
-          )}
+        <Tab eventKey="inprogress" title="Devam Eden Projeler">
+          {renderProjectsContent()}
         </Tab>
-
-        <Tab eventKey="processing" title="İşlenen Satış Talepleri">
-          {loadingProcessing ? (
-            <p>Yükleniyor...</p>
-          ) : processingSalesRequests.length > 0 ? (
-            <Table striped bordered hover responsive>
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th>Pazar</th>
-                  <th>Ülke</th>
-                  <th>Güç</th>
-                  <th>Gerilim</th>
-                  <th>Adet</th>
-                  <th>İşlemler</th>
-                </tr>
-              </thead>
-              <tbody>
-                {processingSalesRequests.map((request, index) => (
-                  <tr key={request.id}>
-                    <td>{index + 1}</td>
-                    <td>{request.domestic ? "Yurtiçi" : "Yurtdışı"}</td>
-                    <td>{request.country}</td>
-                    <td>{request.power}</td>
-                    <td>{request.outputPower}</td>
-                    <td>{request.quantity}</td>
-                    <td>
-                      <Button
-                        variant="info"
-                        size="sm"
-                        className="me-2 mb-1"
-                        onClick={() => handleShowDetails(request)}
-                      >
-                        Detaylar
-                      </Button>
-                      <Button
-                        variant="outline-secondary"
-                        size="sm"
-                        className="mb-1"
-                        onClick={() => handleShowFilesModal(request.id, true)}
-                      >
-                        <i className="bi bi-file-earmark"></i> Dosyalar
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </Table>
-          ) : (
-            <div className="text-center p-4 border rounded bg-light">
-              <p className="mb-0">İşlenen satış talebi bulunmamaktadır.</p>
-            </div>
-          )}
+        <Tab eventKey="inproduction" title="Üretime Verilen Projeler">
+          {renderProjectsContent()}
         </Tab>
-
-        <Tab eventKey="production" title="Oluşturulan Üretim Talepleri">
-          {loadingProduction ? (
-            <p>Yükleniyor...</p>
-          ) : productionRequests.length > 0 ? (
-            <Table striped bordered hover responsive>
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th>Başlık</th>
-                  <th>Açıklama</th>
-                  <th>Miktar</th>
-                  <th>Durum</th>
-                  <th>Oluşturma Tarihi</th>
-                  <th>Tahmini Termin Tarihi</th>
-                  <th>İşlemler</th>
-                </tr>
-              </thead>
-              <tbody>
-                {productionRequests.map((request, index) => (
-                  <tr key={request.id}>
-                    <td>{index + 1}</td>
-                    <td>{request.title}</td>
-                    <td>
-                      {request.description.length > 50
-                        ? request.description.substring(0, 50) + "..."
-                        : request.description}
-                    </td>
-                    <td>{request.quantity}</td>
-                    <td>{getStatusBadge(request.status)}</td>
-                    <td>{new Date(request.createdAt).toLocaleString()}</td>
-                    <td>
-                      {request.estimatedDeliveryDate
-                        ? new Date(
-                            request.estimatedDeliveryDate
-                          ).toLocaleDateString("tr-TR")
-                        : "-"}
-                    </td>
-                    <td>
-                      <Button
-                        variant="outline-secondary"
-                        size="sm"
-                        onClick={() => handleShowFilesModal(request.id, false)}
-                      >
-                        <i className="bi bi-file-earmark"></i> Dosyalar
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </Table>
-          ) : (
-            <div className="text-center p-4 border rounded bg-light">
-              <p className="mb-0">
-                Oluşturulmuş üretim talebi bulunmamaktadır.
-              </p>
-            </div>
-          )}
+        <Tab eventKey="completed" title="Tamamlanan Projeler">
+          {renderProjectsContent()}
         </Tab>
       </Tabs>
+
+      {/* Proje Detay Modalı */}
+      <Modal
+        show={showProjectDetailModal}
+        onHide={() => setShowProjectDetailModal(false)}
+        size="lg"
+        dialogClassName="modal-90w"
+      >
+        <Modal.Header closeButton>
+          <Modal.Title>
+            Proje Detayı: {selectedProject ? selectedProject.name : ""}
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          {selectedProject && (
+            <>
+              <div className="mb-3">
+                <Button
+                  variant={showRequested ? "outline-primary" : "primary"}
+                  size="sm"
+                  className="me-2"
+                  onClick={() => setShowRequested(!showRequested)}
+                >
+                  {showRequested
+                    ? "Sadece Bekleyenleri Göster"
+                    : "Tümünü Göster"}
+                </Button>
+              </div>
+
+              {loadingProjectRequests ? (
+                <div className="text-center my-4">
+                  <Spinner animation="border" variant="primary" />
+                  <p className="mt-2">Proje talepleri yükleniyor...</p>
+                </div>
+              ) : projectRequests.length === 0 ? (
+                <Alert variant="info">
+                  Bu projeye ait talep bulunmamaktadır.
+                </Alert>
+              ) : (
+                <Table striped bordered hover responsive>
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Pazar</th>
+                      <th>Ülke</th>
+                      <th>Güç</th>
+                      <th>Gerilim</th>
+                      <th>Adet</th>
+                      <th>Durum</th>
+                      <th>Teslim Tarihi</th>
+                      <th>İşlemler</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filterProjectRequests(projectRequests).map(
+                      (request, index) => (
+                        <tr key={request.id}>
+                          <td>{index + 1}</td>
+                          <td>{request.isDomestic ? "Yurtiçi" : "Yurtdışı"}</td>
+                          <td>{request.country}</td>
+                          <td>{request.power}</td>
+                          <td>{request.outputPower}</td>
+                          <td>{request.quantity}</td>
+                          <td>{getStatusBadge(request.status)}</td>
+                          <td>
+                            {request.requestedDeliveryDate
+                              ? new Date(
+                                  request.requestedDeliveryDate
+                                ).toLocaleDateString()
+                              : "-"}
+                          </td>
+                          <td>
+                            <Button
+                              variant="outline-info"
+                              size="sm"
+                              className="me-2 mb-1"
+                              onClick={() => handleShowDetails(request)}
+                            >
+                              Detay
+                            </Button>
+                            <Button
+                              variant="outline-secondary"
+                              size="sm"
+                              className="me-2 mb-1"
+                              onClick={() =>
+                                handleShowFilesModal(request.id, true)
+                              }
+                            >
+                              <i className="bi bi-file-earmark"></i> Dosyalar
+                            </Button>
+                            {request.status === "PENDING" && (
+                              <Button
+                                variant="primary"
+                                size="sm"
+                                className="mb-1"
+                                onClick={() =>
+                                  handleOpenNewRequestModal(request)
+                                }
+                              >
+                                Talep Oluştur
+                              </Button>
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    )}
+                  </tbody>
+                </Table>
+              )}
+            </>
+          )}
+        </Modal.Body>
+        <Modal.Footer>
+          <div className="w-100 d-flex justify-content-between">
+            <div>
+              {/* Üretime Ver butonu - Projede en az bir sales request varsa ve tüm sales requestlerin altındaki tüm üretim talepleri DELIVERED ise göster */}
+              {selectedProject &&
+                projectRequests.length > 0 &&
+                projectRequests.every((salesRequest) => {
+                  // Eğer sales request'in altında hiç üretim talebi yoksa, o sales request henüz işlenmemiş demektir, bu durumda false döndür
+                  if (!salesRequest.productionRequests || salesRequest.productionRequests.length === 0) {
+                    return false;
+                  }
+                  
+                  // Sales request'in altındaki tüm üretim taleplerinin DELIVERED olup olmadığını kontrol et
+                  return salesRequest.productionRequests.every(prodReq => prodReq.status === "DELIVERED");
+                }) && (
+                  <Button
+                    variant="success"
+                    onClick={() => handleSendToProduction(selectedProject.id)}
+                  >
+                    Üretime Ver
+                  </Button>
+                )}
+
+              {/* Tamamla butonu - Eğer proje IN_PRODUCTION durumunda ise göster */}
+              {selectedProject &&
+                selectedProject.status === "IN_PRODUCTION" && (
+                  <Button
+                    variant="info"
+                    onClick={() => handleCompleteProject(selectedProject.id)}
+                  >
+                    Tamamla
+                  </Button>
+                )}
+            </div>
+
+            <Button
+              variant="secondary"
+              onClick={() => setShowProjectDetailModal(false)}
+            >
+              Kapat
+            </Button>
+          </div>
+        </Modal.Footer>
+      </Modal>
 
       {/* Satış Talebi Detay Modal */}
       <Modal
@@ -635,7 +644,9 @@ const ProductionDashboard = () => {
                   </tr>
                   <tr>
                     <th>Pazar</th>
-                    <td>{selectedRequest.domestic ? "Yurtiçi" : "Yurtdışı"}</td>
+                    <td>
+                      {selectedRequest.isDomestic ? "Yurtiçi" : "Yurtdışı"}
+                    </td>
                   </tr>
                   <tr>
                     <th>Ülke</th>
@@ -653,7 +664,7 @@ const ProductionDashboard = () => {
                     <th>Adet</th>
                     <td>{selectedRequest.quantity}</td>
                   </tr>
-                  {selectedRequest.domestic && (
+                  {selectedRequest.isDomestic && (
                     <tr>
                       <th>Sınıf</th>
                       <td>{selectedRequest.aPlus ? "A+" : "Normal"}</td>
@@ -687,32 +698,51 @@ const ProductionDashboard = () => {
                       <td>{selectedRequest.notes}</td>
                     </tr>
                   )}
+                  <tr>
+                    <th>Proje</th>
+                    <td>{selectedRequest.projectName || "-"}</td>
+                  </tr>
                 </tbody>
               </table>
 
-              {selectedRequest.productionRequest ? (
+              {selectedRequest.productionRequests && selectedRequest.productionRequests.length > 0 ? (
                 <div className="mt-4">
-                  <h5>İlişkili Üretim Talebi</h5>
-                  <table className="table table-bordered">
-                    <tbody>
+                  <h5>İlişkili Üretim Talepleri</h5>
+                  <Table striped bordered hover>
+                    <thead>
                       <tr>
-                        <th style={{ width: "30%" }}>Talep #</th>
-                        <td>{selectedRequest.productionRequest.id}</td>
-                      </tr>
-                      <tr>
+                        <th>#</th>
                         <th>Başlık</th>
-                        <td>{selectedRequest.productionRequest.title}</td>
-                      </tr>
-                      <tr>
+                        <th>Miktar</th>
                         <th>Durum</th>
-                        <td>
-                          {getStatusBadge(
-                            selectedRequest.productionRequest.status
-                          )}
-                        </td>
+                        <th>İşlemler</th>
                       </tr>
+                    </thead>
+                    <tbody>
+                      {selectedRequest.productionRequests.map((req, index) => (
+                        <tr key={req.id}>
+                          <td>{index + 1}</td>
+                          <td>{req.title}</td>
+                          <td>
+                            {req.quantity} {getUnitName(req.unit)}
+                          </td>
+                          <td>{getStatusBadge(req.status)}</td>
+                          <td>
+                            <Button
+                              variant="outline-info"
+                              size="sm"
+                              onClick={() => {
+                                // Talep detaylarını görüntüleme işlemi burada yapılabilir
+                                alert(`Üretim Talebi #${req.id} Detayları`);
+                              }}
+                            >
+                              Detay
+                            </Button>
+                          </td>
+                        </tr>
+                      ))}
                     </tbody>
-                  </table>
+                  </Table>
                 </div>
               ) : (
                 selectedRequest.status === "PENDING" && (
@@ -792,10 +822,17 @@ const ProductionDashboard = () => {
                 <p className="mb-0">
                   <strong>İlgili Satış Talebi: </strong> #
                   {relatedSalesRequest.id} -
-                  {relatedSalesRequest.domestic ? "Yurtiçi" : "Yurtdışı"} /{" "}
+                  {relatedSalesRequest.isDomestic ? "Yurtiçi" : "Yurtdışı"} /{" "}
                   {relatedSalesRequest.country} /{relatedSalesRequest.power} /{" "}
                   {relatedSalesRequest.outputPower} /
                   {relatedSalesRequest.quantity} adet
+                  {relatedSalesRequest.projectName && (
+                    <span>
+                      {" "}
+                      | <strong>Proje:</strong>{" "}
+                      {relatedSalesRequest.projectName}
+                    </span>
+                  )}
                 </p>
               </div>
 
@@ -927,7 +964,7 @@ const ProductionDashboard = () => {
                           />
                         </div>
 
-                        {/* Dosya Yükleme Alanı - YENİ */}
+                        {/* Dosya Yükleme Alanı */}
                         <div className="mb-3">
                           <label
                             htmlFor="productionFileUpload"
@@ -1145,6 +1182,80 @@ const ProductionDashboard = () => {
       </Modal>
     </div>
   );
+
+  // Projeleri gösteren tablo
+  function renderProjectsContent() {
+    if (loading) {
+      return (
+        <div className="text-center my-5">
+          <Spinner animation="border" variant="primary" />
+          <p className="mt-3">Projeler yükleniyor...</p>
+        </div>
+      );
+    }
+
+    if (projects.length === 0) {
+      return <Alert variant="info">Bu durumda proje bulunmamaktadır.</Alert>;
+    }
+
+    return (
+      <Card>
+        <Card.Body>
+          <Table striped bordered hover responsive>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Proje Adı</th>
+                <th>Oluşturan</th>
+                <th>Oluşturulma Tarihi</th>
+                <th>Durum</th>
+                <th>İşlemler</th>
+              </tr>
+            </thead>
+            <tbody>
+              {projects.map((project, index) => (
+                <tr key={project.id}>
+                  <td>{index + 1}</td>
+                  <td>{project.name}</td>
+                  <td>{project.creatorName}</td>
+                  <td>
+                    {new Date(project.createdAt).toLocaleDateString("tr-TR", {
+                      day: "2-digit",
+                      month: "2-digit",
+                      year: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </td>
+                  <td>{getStatusBadge(project.status)}</td>
+                  <td>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      className="me-2"
+                      onClick={() => handleShowProjectDetail(project)}
+                    >
+                      Detay Görüntüle
+                    </Button>
+
+                    {project.status === "ORDERED" && (
+                      <Button
+                        variant="success"
+                        size="sm"
+                        onClick={() => handleSendToProduction(project.id)}
+                      >
+                        Üretime Ver
+                      </Button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </Table>
+        </Card.Body>
+      </Card>
+    );
+  }
 };
 
 export default ProductionDashboard;

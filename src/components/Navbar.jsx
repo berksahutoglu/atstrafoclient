@@ -64,14 +64,24 @@ const NavbarComponent = () => {
               </Nav.Link>
             )}
             {currentUser && currentUser.role === 'ROLE_SALESANDMARKETING' && (
-              <Nav.Link 
-                as={Link} 
-                to="/sales" 
-                className={getNavLinkClass("/sales")}
-                style={orangeTextStyle}
-              >
-                Satış Siparişleri
-              </Nav.Link>
+              <>
+                <Nav.Link 
+                  as={Link} 
+                  to="/sales" 
+                  className={getNavLinkClass("/sales")}
+                  style={orangeTextStyle}
+                >
+                  Satış Siparişleri
+                </Nav.Link>
+                <Nav.Link 
+                  as={Link} 
+                  to="/projects" 
+                  className={getNavLinkClass("/projects")}
+                  style={orangeTextStyle}
+                >
+                  Projeler
+                </Nav.Link>
+              </>
             )}
             {currentUser && currentUser.role === 'ROLE_PRODUCTION' && (
               <Nav.Link 

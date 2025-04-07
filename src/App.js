@@ -8,6 +8,7 @@ import RequestDelivery from './pages/RequestDelivery';
 import SalesRequestForm from './pages/SalesRequestForm';
 import MultiSalesRequestForm from './pages/MultiSalesRequestForm';
 import ProductionDashboard from './pages/ProductionDashboard';
+import ProjectManagement from './pages/ProjectManagement';
 import MultiRequestForm from './pages/MultiRequestForm';
 import Navbar from './components/Navbar';
 import 'bootstrap/dist/css/bootstrap.min.css';
@@ -65,6 +66,12 @@ function App() {
               <Route path="/sales" element={
                 <ProtectedRoute roles={['ROLE_SALESANDMARKETING']}>
                   <MultiSalesRequestForm />
+                </ProtectedRoute>
+              } />
+              
+              <Route path="/projects" element={
+                <ProtectedRoute roles={['ROLE_SALESANDMARKETING']}>
+                  <ProjectManagement />
                 </ProtectedRoute>
               } />
               
